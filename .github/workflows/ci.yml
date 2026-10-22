@@ -77,6 +77,10 @@ jobs:
       - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+      # Supabase binds 54320-54329, inside Linux's default ephemeral range
+      # (32768-60999); an outbound socket on the runner can already hold one.
+      - name: Keep ephemeral ports clear of the Supabase ports
+        run: sudo sysctl -w net.ipv4.ip_local_port_range="60000 65000"
       - run: supabase db start
       - run: supabase test db
       - run: supabase db lint --local --fail-on warning
@@ -98,6 +102,10 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: e2e/package-lock.json
+      # Supabase binds 54320-54329, inside Linux's default ephemeral range
+      # (32768-60999); an outbound socket on the runner can already hold one.
+      - name: Keep ephemeral ports clear of the Supabase ports
+        run: sudo sysctl -w net.ipv4.ip_local_port_range="60000 65000"
       - name: Start the local Supabase stack
         run: supabase start
       - name: Export local stack URL and publishable key

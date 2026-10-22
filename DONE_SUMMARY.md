@@ -95,6 +95,14 @@ Screenshots are in `docs/screenshots/job-1/`.
 - Deleting a household cascaded into history writes that pointed at the
   deleted household. Fix: the history trigger skips cascaded deletes.
 
+- The first CI run on `main` failed in e2e: `address already in use` on
+  port 54324. Supabase's 543xx ports sit inside the runner's ephemeral port
+  range. The follow-up PR narrows that range before the stack starts
+  (`job/1-foundation-ci-ports`).
+- PR #1 was squash-merged at 18:03 UTC by another process on the
+  `petertrost-bot` account (commit author `bot@petertrost.com`), before this
+  job's own merge call. The merged tree is the verified head `96c1dc1`.
+
 ### Missing or blocked
 
 - **Remote deploy.** `~/groceries-ops/env` is empty, so there is no

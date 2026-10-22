@@ -1,0 +1,10 @@
+# Peter's strict rule set, as in emotely (apps/mobile/packages/utility/analysis).
+include: package:flutter_agent_lints/experimental.yaml
+
+analyzer:
+  exclude:
+    - lib/l10n/app_localizations*.dart
+    - build/**
+    - android/**
+    - ios/**
+    - web/**

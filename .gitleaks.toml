@@ -1,0 +1,29 @@
+# Default gitleaks rules plus the Supabase key formats. The publishable key and
+# project URL are public by design and allowed; secret keys never are.
+title = "family-groceries"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "supabase-secret-key"
+description = "Supabase secret API key"
+regex = '''sb_secret_[A-Za-z0-9_-]{20,}'''
+keywords = ["sb_secret_"]
+
+[[rules]]
+id = "supabase-access-token"
+description = "Supabase personal access token"
+regex = '''sbp_[a-f0-9]{40}'''
+keywords = ["sbp_"]
+
+[[rules]]
+id = "jwt"
+description = "JSON Web Token (legacy Supabase anon/service_role keys, session tokens)"
+regex = '''eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'''
+keywords = ["eyj"]
+
+[allowlist]
+description = "Public client configuration"
+regexes = ['''sb_publishable_[A-Za-z0-9_-]+''']
+paths = ['''(^|/)node_modules/''', '''(^|/)build/''', '''\.dart_tool/''', '''(^|/)supabase/\.temp/''']

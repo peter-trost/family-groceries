@@ -1,0 +1,35 @@
+# Secrets: never commit. Keep placeholders in .env.example.
+.env
+.env.*
+!.env.example
+*.env
+supabase/.env*
+supabase/functions/.env*
+*.pem
+*.p8
+*.p12
+*.key
+*.jks
+*.keystore
+key.properties
+**/android/key.properties
+service-account*.json
+google-services.json
+GoogleService-Info.plist
+*.mobileprovision
+
+# Build output and tool state
+build/
+.dart_tool/
+.flutter-plugins-dependencies
+node_modules/
+e2e/test-results/
+e2e/playwright-report/
+e2e/screenshots/
+supabase/.temp/
+supabase/.branches/
+coverage/
+*.iml
+.idea/
+.vscode/
+.DS_Store

@@ -1,0 +1,48 @@
+# Pushes migrations and edge functions to the hosted project from main.
+# Auth URLs are set once by hand until the web app has a public URL (docs/NEEDS_PETER.md).
+# Needs repo secrets SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD and the repo
+# variable (or secret) SUPABASE_PROJECT_REF; without them every step is skipped and the run stays green.
+name: Supabase deploy
+
+on:
+  push:
+    branches: [main]
+    paths: ['supabase/**', '.github/workflows/supabase-deploy.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Check for deploy credentials
+        id: creds
+        run: |
+          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_DB_PASSWORD" ] && [ -n "$SUPABASE_PROJECT_REF" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Supabase deploy skipped: set SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD and SUPABASE_PROJECT_REF (see docs/NEEDS_PETER.md)."
+          fi
+      - if: steps.creds.outputs.ready == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - if: steps.creds.outputs.ready == 'true'
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        with:
+          version: 2.121.0
+      - if: steps.creds.outputs.ready == 'true'
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+      - if: steps.creds.outputs.ready == 'true'
+        run: supabase db push
+      - if: steps.creds.outputs.ready == 'true'
+        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"

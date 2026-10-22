@@ -187,6 +187,9 @@ class _ShoppingListState() extends State<ShoppingList> {
                 controller: _input,
                 focusNode: _inputFocus,
                 autofocus: true,
+                // The server caps names at 120 characters.
+                maxLength: 120,
+                maxLengthEnforcement: MaxLengthEnforcement.enforced,
                 textInputAction: TextInputAction.send,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
@@ -198,6 +201,7 @@ class _ShoppingListState() extends State<ShoppingList> {
                     onPressed: _submit,
                   ),
                   border: const OutlineInputBorder(),
+                  counterText: '',
                 ),
                 // Keeps the soft keyboard up after submitting.
                 onEditingComplete: () {},

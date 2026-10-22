@@ -77,12 +77,14 @@ class _EditItemSheetState() extends State<_EditItemSheet> {
           const SizedBox(height: 16),
           TextField(
             controller: _name,
+            maxLength: 120,
             decoration: InputDecoration(labelText: l10n.itemName),
             onSubmitted: (_) => _save(),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _quantity,
+            maxLength: 40,
             decoration: InputDecoration(
               labelText: l10n.itemQuantity,
               hintText: l10n.itemQuantityHint,

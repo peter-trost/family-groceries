@@ -47,6 +47,7 @@ any of them; each entry says what changing it would touch.
 11. **Cold start needs the network.** The app keeps no local copy of the
     list yet: offline at launch it shows a spinner and retries until online.
     Changes made while online stay queued across connection loss.
+    Tracked in https://github.com/peter-trost/family-groceries/issues/3.
 12. **Duplicates.** Adding an item whose name matches an active item
     (case-insensitive) does not add a second row; the app says it is
     already on the list.
@@ -82,3 +83,36 @@ any of them; each entry says what changing it would touch.
     installs OpenJDK 21 and the Android command-line tools; `flutter build apk
     --release` then produces `app-release.apk` (56.5 MB, 3.6 min cold). It is
     signed with the debug key until job 4 adds release signing via secrets.
+
+## Job 1 review fixes (review 0), 2026-10-22
+
+23. **`classify_item` is members-only for signed-in callers.** It returned
+    another household's category ids to anyone who knew that household's id.
+    Migration `20261022190000_classify_item_members_only.sql` raises
+    `not_a_member` (42501) when `auth.uid()` is set and is not a member.
+    Calls without a user (service role for MCP and Siri, the database
+    itself) stay allowed; the items trigger runs as the caller, so member
+    inserts are unaffected.
+24. **Merge author.** The squash commits `26e9d06` (#1) and `13dfe23` (#2) on
+    `main` carry `petertrost-bot <bot@petertrost.com>`, the account's default
+    email, instead of the required
+    `341616691+petertrost-bot@users.noreply.github.com`. `main` is not
+    rewritten (no force-push). GitHub rejects the noreply address as a merge
+    `--author-email` ("Invalid email address"), so `scripts/merge-pr.sh`
+    squashes the PR locally into one commit authored with the noreply address
+    and titled "<PR title> (#n)", pushes it to the PR branch, and once
+    `ci-ok` passes on it, rebase-merges it. A rebase merge keeps the commit
+    author, and one commit keeps `main` as linear as a squash merge.
+    One slip while building this: commit `008e2b0` (adds only
+    `scripts/merge-pr.sh`) was pushed straight to `main` after a failed
+    branch checkout left the shell on `main`. It was a fast-forward, not a
+    force-push; it stays, and CI ran on it like any `main` push.
+25. **Input length caps in the app.** The add field and the edit sheet cap the
+    name at 120 characters and the quantity at 40, matching the table checks,
+    so a long paste no longer ends in a server rejection.
+26. **No pstack config in the repo.** `/setup-pstack` writes only the
+    per-user rule `~/.cursor/rules/pstack-models.mdc` (see #19); the repo
+    carries none by design.
+27. **Node 20 stays on this box.** Bootstrap does not replace the system
+    Node, because other workloads share the box. CI runs Node 22. The
+    supabase-js deprecation warning in local Playwright runs is expected.

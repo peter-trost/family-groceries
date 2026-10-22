@@ -67,6 +67,14 @@ void main() {
     expect(tester.widget<TextField>(addField()).focusNode!.hasFocus, isTrue);
   });
 
+  testWidgets('a long paste is capped at the server limit', (tester) async {
+    await pumpList(tester);
+    await tester.enterText(addField(), 'x' * 130);
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pumpAndSettle();
+    expect(repo.rows.values.single.name, hasLength(120));
+  });
+
   testWidgets('ticking offers undo', (tester) async {
     await pumpList(tester);
     await tester.enterText(addField(), 'Brot');

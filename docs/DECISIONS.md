@@ -78,3 +78,7 @@ any of them; each entry says what changing it would touch.
     to `peter-trost/family-groceries` (GitHub redirect seen on the first push,
     2026-10-22). The local remote points at the new URL; nothing else in the
     repo names the owner.
+22. **Android APK builds on this box.** `scripts/bootstrap.sh --android`
+    installs OpenJDK 21 and the Android command-line tools; `flutter build apk
+    --release` then produces `app-release.apk` (56.5 MB, 3.6 min cold). It is
+    signed with the debug key until job 4 adds release signing via secrets.

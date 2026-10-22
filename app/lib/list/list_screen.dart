@@ -172,13 +172,16 @@ class _ShoppingListState() extends State<ShoppingList> {
               // web's text-input action path blurs the field and leaves it
               // dead for the next Enter. Soft keyboards still submit below.
               onKeyEvent: (_, event) {
-                if (event is KeyDownEvent &&
-                    (event.logicalKey == LogicalKeyboardKey.enter ||
-                        event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
-                  _submit();
-                  return KeyEventResult.handled;
+                final enter =
+                    event.logicalKey == LogicalKeyboardKey.enter ||
+                    event.logicalKey == LogicalKeyboardKey.numpadEnter;
+                if (!enter || event is KeyUpEvent) {
+                  return KeyEventResult.ignored;
                 }
-                return KeyEventResult.ignored;
+                if (event is KeyDownEvent) {
+                  _submit();
+                }
+                return KeyEventResult.handled;
               },
               child: TextField(
                 controller: _input,
@@ -341,7 +344,9 @@ class const _ItemTile({
           ),
         ),
         title: Text(item.name),
-        trailing: quantity == null ? null : Text(quantity),
+        trailing: quantity == null
+            ? null
+            : Text(quantity, style: Theme.of(context).textTheme.bodyMedium),
         onTap: onEdit,
       ),
     );

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Blocks commits that contain secrets. Installed by scripts/bootstrap.sh (core.hooksPath=.githooks).
+set -euo pipefail
+PATH="$HOME/.local/bin:$PATH"
+if ! command -v gitleaks >/dev/null; then
+  echo "pre-commit: gitleaks is not installed; run scripts/bootstrap.sh" >&2
+  exit 1
+fi
+exec gitleaks git --pre-commit --staged --redact --no-banner .

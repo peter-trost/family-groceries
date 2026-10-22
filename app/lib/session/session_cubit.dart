@@ -11,7 +11,10 @@ sealed class const Session();
 
 final class const SessionLoading() extends Session;
 
-final class const SignedOut() extends Session;
+final class const SignedOut([
+  /// Why the last sign-in failed, e.g. an error on a provider's return URL.
+  final Exception? error,
+]) extends Session;
 
 final class const NeedsHousehold(final String userId) extends Session;
 
@@ -26,9 +29,11 @@ final class const HouseholdError(
 
 class SessionCubit(final SupabaseClient _client) extends Cubit<Session> {
   this : super(const SessionLoading()) {
+    // Also replays a failed browser sign-in that supabase_flutter read from
+    // the return URL before this cubit existed.
     _auth = _client.auth.onAuthStateChange.listen(
       (event) => unawaited(_load(event.session?.user.id)),
-      onError: (Object _) => emit(const SignedOut()),
+      onError: (Object e) => emit(SignedOut(e is Exception ? e : null)),
     );
   }
 

@@ -1,0 +1,4 @@
+// Google sign-in on iOS: the iOS OAuth client ID reversed, e.g.
+// com.googleusercontent.apps.1234567890-abcdef. Public, not a secret.
+// Must match GOOGLE_IOS_CLIENT_ID in app/config/auth.json (a unit test checks).
+GOOGLE_REVERSED_CLIENT_ID =

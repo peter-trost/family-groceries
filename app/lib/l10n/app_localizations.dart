@@ -370,6 +370,30 @@ abstract class AppLocalizations {
   /// **'Anmeldung fehlgeschlagen: {message}'**
   String authFailed(String message);
 
+  /// No description provided for @signInWithGoogle.
+  ///
+  /// In de, this message translates to:
+  /// **'Mit Google anmelden'**
+  String get signInWithGoogle;
+
+  /// No description provided for @signInWithApple.
+  ///
+  /// In de, this message translates to:
+  /// **'Mit Apple anmelden'**
+  String get signInWithApple;
+
+  /// No description provided for @signInCanceled.
+  ///
+  /// In de, this message translates to:
+  /// **'Anmeldung abgebrochen'**
+  String get signInCanceled;
+
+  /// No description provided for @orWithEmail.
+  ///
+  /// In de, this message translates to:
+  /// **'oder mit E-Mail'**
+  String get orWithEmail;
+
   /// No description provided for @onboardingTitle.
   ///
   /// In de, this message translates to:

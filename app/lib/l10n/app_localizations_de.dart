@@ -174,6 +174,18 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get signInWithGoogle => 'Mit Google anmelden';
+
+  @override
+  String get signInWithApple => 'Mit Apple anmelden';
+
+  @override
+  String get signInCanceled => 'Anmeldung abgebrochen';
+
+  @override
+  String get orWithEmail => 'oder mit E-Mail';
+
+  @override
   String get onboardingTitle => 'Willkommen';
 
   @override

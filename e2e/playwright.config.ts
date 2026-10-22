@@ -18,10 +18,21 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     ...devices['Desktop Chrome'],
     viewport: { width: 480, height: 900 },
+    // Supabase Auth sends the browser to the fake identity provider by the
+    // name its container knows it under.
+    launchOptions: { args: ['--host-resolver-rules=MAP host.docker.internal 127.0.0.1'] },
   },
-  webServer: {
-    command: `node serve.mjs ../app/build/web ${port}`,
-    url: `http://127.0.0.1:${port}`,
-    reuseExistingServer: !process.env.CI,
-  },
+  webServer: [
+    {
+      command: `node serve.mjs ../app/build/web ${port}`,
+      url: `http://127.0.0.1:${port}`,
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      // Every copy signs with the same key, so one left running is reusable.
+      command: 'node fake-oidc.mjs',
+      url: 'http://127.0.0.1:54399/realms/test/.well-known/openid-configuration',
+      reuseExistingServer: true,
+    },
+  ],
 });

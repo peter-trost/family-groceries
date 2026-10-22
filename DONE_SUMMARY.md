@@ -113,7 +113,50 @@ Screenshots are in `docs/screenshots/job-1/`.
   see `docs/NEEDS_PETER.md`, section 3.
 - **Offline cold start.** Launching the app offline shows a spinner until
   the network returns; there is no local copy of the list yet. This is a
-  deliberate scope call (DECISIONS #11).
+  deliberate scope call (DECISIONS #11), tracked in issue #3.
 - **Repository moved.** The repo now lives at
   `peter-trost/family-groceries`; the GitHub redirect showed this on the
   first push. `~/groceries-ops/COMMON.md` still names `petertrost-bot`.
+
+### Review 0 fixes (branch `job/1-foundation-review-fixes`)
+
+Must fix:
+
+1. **`classify_item` leaked across households.** Fixed by migration
+   `20261022190000_classify_item_members_only.sql`: a signed-in caller who
+   is not a member of the household gets `not_a_member` (42501). Service
+   role and the database itself still classify (MCP and Siri in jobs 3–4),
+   and member inserts are unaffected. New pgTAP cases: denied for another
+   household, allowed for the own household, denied for anon, allowed
+   without a user. Proven to catch the bug: with the fix migration removed,
+   test 16 fails; with it, all pass. The Playwright RLS test also calls the
+   RPC as the outsider and expects `not_a_member` with no data.
+2. **Merge author email.** `main`'s squash commits `26e9d06` and `13dfe23`
+   have `bot@petertrost.com`, the account's default email. History is not
+   rewritten. GitHub refuses the noreply address as a squash-merge
+   `--author-email` (tried: "Invalid email address"), so the new
+   `scripts/merge-pr.sh` squashes the PR locally into one commit authored
+   `341616691+petertrost-bot@users.noreply.github.com` with the trailers,
+   and rebase-merges it once `ci-ok` passes, which keeps the author.
+   AGENTS.md and COMMON.md point at it. PR #4 is landed with it. Recorded in
+   DECISIONS #24.
+   Slip: a failed branch checkout left the shell on `main`, and commit
+   `008e2b0` (only `scripts/merge-pr.sh`) was pushed to `main` directly,
+   bypassing a PR. It was a fast-forward, not a force-push; it is left in
+   place and noted in DECISIONS #24.
+
+Nice to have, also done:
+
+- The add field caps names at 120 characters and the edit sheet caps the
+  quantity at 40, so a long paste is trimmed instead of rejected. Covered by
+  a widget test.
+- pgTAP now covers `join_household`'s destructive path: a sole member who
+  joins elsewhere loses their old household and its list, and a household
+  with other members survives.
+- Offline cold start is ticketed as issue #3.
+- COMMON.md has a note about the repo's new owner.
+- DECISIONS #26 records that the repo carries no pstack config.
+- DECISIONS #27 explains why Node 20 stays on the box.
+
+Results after the fixes (local `scripts/verify.sh`): pgTAP 54/54, Flutter
+46/46, Playwright 11/11, gitleaks clean, `db lint` clean.

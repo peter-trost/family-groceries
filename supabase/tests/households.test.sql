@@ -1,5 +1,5 @@
 begin;
-select plan(24);
+select plan(30);
 
 create function pg_temp.login(uid uuid) returns void language plpgsql as $$
 begin
@@ -123,6 +123,43 @@ select pg_temp.login('00000000-0000-0000-0000-00000000000a');
 select public.leave_current_household();
 select pg_temp.logout();
 select is((select count(*)::int from public.households), 0, 'the last member leaving deletes the household');
+
+-- Joining moves a user: a household they were alone in goes, with its list;
+-- a household with other members stays.
+insert into auth.users (id, email) values
+  ('00000000-0000-0000-0000-00000000000d', 'd@example.com'),
+  ('00000000-0000-0000-0000-00000000000e', 'e@example.com'),
+  ('00000000-0000-0000-0000-00000000000f', 'f@example.com');
+select pg_temp.login('00000000-0000-0000-0000-00000000000d');
+create temp table hd as select id from public.create_household('Ziel');
+create temp table invd as select * from public.create_invite((select id from hd));
+select pg_temp.login('00000000-0000-0000-0000-00000000000e');
+create temp table he as select id from public.create_household('Allein');
+insert into public.items (household_id, name) select id, 'Alt' from he;
+select lives_ok(format($$ select public.join_household(%L) $$, (select code from invd)),
+  'a sole member can join another household');
+select pg_temp.logout();
+select is((select count(*)::int from public.households where id = (select id from he)), 0,
+  'the household they were alone in is deleted');
+select is((select count(*)::int from public.items where household_id = (select id from he)), 0,
+  'together with its list');
+select is(
+  (select household_id from public.household_members where user_id = '00000000-0000-0000-0000-00000000000e'),
+  (select id from hd), 'they are now a member of the new household'
+);
+select pg_temp.login('00000000-0000-0000-0000-00000000000f');
+create temp table hf as select id from public.create_household('Anderer');
+create temp table invf as select * from public.create_invite((select id from hf));
+select pg_temp.login('00000000-0000-0000-0000-00000000000d');
+select public.join_household((select code from invf));
+select pg_temp.logout();
+select is((select count(*)::int from public.households where id = (select id from hd)), 1,
+  'a household with other members survives when one member leaves');
+select results_eq(
+  $$ select user_id from public.household_members where household_id = (select id from hd) $$,
+  $$ values ('00000000-0000-0000-0000-00000000000e'::uuid) $$,
+  'only the leaving member was removed'
+);
 
 select * from finish();
 rollback;

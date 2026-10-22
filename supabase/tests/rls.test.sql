@@ -1,5 +1,5 @@
 begin;
-select plan(20);
+select plan(24);
 
 create function pg_temp.login(uid uuid) returns void language plpgsql as $$
 begin
@@ -71,6 +71,14 @@ select throws_ok(
   $$ select public.seed_household((select id from ha)) $$,
   '42501', null, 'seeding is internal'
 );
+select throws_ok(
+  $$ select public.classify_item((select id from ha), 'Milch') $$,
+  '42501', 'not_a_member', 'classifying for another household is denied (it would reveal its category ids)'
+);
+select is(
+  (select seed_key from public.categories where id = public.classify_item((select id from hb), 'Milch')),
+  'chilled', 'classifying for the own household works'
+);
 
 select pg_temp.login('00000000-0000-0000-0000-0000000000a1');
 select results_eq(
@@ -88,6 +96,12 @@ select throws_ok(
   '23503', null, 'even a privileged writer cannot point an item at another household''s category'
 );
 
+select pg_temp.anon();
+select throws_ok($$ select public.classify_item((select id from ha), 'Milch') $$, '42501', null,
+  'anon cannot classify');
+set local role postgres;
+select isnt(public.classify_item((select id from ha), 'Milch'), null,
+  'trusted server paths without a user (service role, triggers) still classify');
 select pg_temp.anon();
 select throws_ok($$ select count(*) from public.items $$, '42501', null, 'anon cannot read items');
 select throws_ok($$ select public.create_household('x') $$, '42501', null, 'anon cannot call household RPCs');

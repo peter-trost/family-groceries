@@ -16,7 +16,8 @@ reasons are in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 - `e2e/`: Playwright tests that drive the Flutter web build against the local
   stack.
 - `scripts/`: `bootstrap.sh` (toolchain), `dev.sh` (local stack + web dev
-  server), `verify.sh` (every CI gate, locally).
+  server), `verify.sh` (every CI gate, locally), `merge-pr.sh` (land a PR
+  as one commit with the required author and trailers).
 
 ## Conventions
 
@@ -44,4 +45,8 @@ reasons are in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 - Flutter web e2e: semantics are enabled on web, so Playwright finds widgets
   by role and label. Type with `typeInto` (`e2e/tests/helpers.ts`); synthetic
   key events drop umlauts.
-- `main` takes squash-merged PRs with `ci-ok` green.
+- `main` takes one commit per PR with `ci-ok` green. Merge with
+  `scripts/merge-pr.sh <n>` (run it, wait for `ci-ok`, run it again): it
+  squashes the PR into one commit authored with the required noreply email
+  and rebase-merges that commit. GitHub's own squash merge authors the
+  commit with the account's default email and rejects the noreply address.

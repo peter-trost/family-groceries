@@ -31,6 +31,9 @@ test('a user from another household can neither see nor change the list', async 
   expect(del.data).toEqual([]);
   const invite = await eveApi.rpc('create_invite', { p_household: householdId });
   expect(invite.error?.message).toBe('not_a_member');
+  const classify = await eveApi.rpc('classify_item', { p_household: householdId, p_name: 'Milch' });
+  expect(classify.data, 'classify does not reveal another household\'s category ids').toBeNull();
+  expect(classify.error?.message).toBe('not_a_member');
 
   const { data: after } = await peterApi.from('items').select('name').eq('id', own!.id).single();
   expect(after!.name, 'the row is untouched').toBe('Geheimzutat');

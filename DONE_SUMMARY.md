@@ -1,5 +1,7 @@
 # Done summary
 
+- Job 1b, Sign in with Google and Apple: [docs/done/01b.md](docs/done/01b.md)
+
 ## Job 1: foundation (2026-10-22)
 
 PR: https://github.com/peter-trost/family-groceries/pull/1

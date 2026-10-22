@@ -41,7 +41,7 @@ fi
 
 log "flutter web build against the local stack"
 # shellcheck disable=SC2046
-(cd "$REPO_ROOT/app" && flutter build web --release --no-web-resources-cdn --no-wasm-dry-run $(flutter_defines) >/dev/null)
+(cd "$REPO_ROOT/app" && flutter build web --release --no-web-resources-cdn --no-wasm-dry-run $(flutter_defines) --dart-define-from-file=config/e2e.json >/dev/null)
 
 log "playwright e2e"
 (cd "$REPO_ROOT/e2e" && { [[ -d node_modules ]] || npm ci; } && npx playwright test)

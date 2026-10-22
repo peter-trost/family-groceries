@@ -116,3 +116,55 @@ any of them; each entry says what changing it would touch.
 27. **Node 20 stays on this box.** Bootstrap does not replace the system
     Node, because other workloads share the box. CI runs Node 22. The
     supabase-js deprecation warning in local Playwright runs is expected.
+
+## Job 1b (Sign in with Google and Apple), 2026-10-22
+
+1. **Flows.** Google is native on iOS and Android, and Apple is native on
+   iOS; both use `signInWithIdToken`. Apple on Android and both providers on
+   web use the OAuth redirect with PKCE. These are the flows Supabase
+   documents. google_sign_in on web cannot hand an ID token to our own
+   button. Details in `docs/AUTH.md`.
+2. **Nonce check on, one Google nonce per app run.** google_sign_in's
+   `initialize` (the only place its nonce goes) may run once per process,
+   so Google gets one random nonce per app run and Apple gets a fresh one
+   per attempt. `skip_nonce_check` stays false. If real iPhones ever return a
+   cached token with an old nonce, the fallback is `skip_nonce_check = true`
+   for Google only.
+3. **No google_sign_in app package.** The app depends on
+   `google_sign_in_platform_interface` plus the Android and iOS
+   implementations. The app-facing package would add `google_sign_in_web`,
+   which loads Google's script on every page view of the web app (seen in
+   the Playwright network log) although web signs in by redirect. Without
+   it, no request goes to Google before the user taps the button. The cost
+   is the platform interface's slightly lower-level API in
+   `plugin_sign_in.dart`.
+4. **Configuration is public client IDs in `app/config/auth.json`,** read
+   with `--dart-define-from-file`. An empty value hides the button. Secrets
+   live only in Supabase. The iOS reversed client ID also has to be in
+   `ios/Flutter/Auth.xcconfig` because `Info.plist` is static; a unit test
+   keeps the two files in step.
+5. **Apple's name.** The app stores it with `updateUser` on the first native
+   sign-in. A trigger copies `full_name` into `profiles.display_name` while
+   the profile still has the derived name. A failed `updateUser` does not
+   fail the sign-in, because the user is already signed in at that point.
+6. **Hosted config by script, never invented.** `scripts/configure-social-auth.mjs`
+   enables a provider only when its credentials are in the environment.
+   Run on 2026-10-22 without provider credentials, it added only the app's
+   deep link to the redirect allow list.
+7. **Mobile deep link `com.petertrost.familygroceries://login-callback`**
+   for Apple on Android and for magic links on the phones. Before this job,
+   mobile magic links went to the site URL, which is the web app.
+8. **Local test provider.** `[auth.external.keycloak]` in `config.toml`
+   points at `e2e/fake-oidc.mjs` on `host.docker.internal:54399`. GoTrue
+   runs the same ID-token, nonce and linking code for it as for Google and
+   Apple, whose issuers are hard-coded. Its signing key comes from a fixed
+   seed, so parallel worktrees can share one running copy. The deploy
+   workflow does not push `config.toml`; never enable this provider on the
+   hosted project.
+9. **Button label "Mit Google anmelden"** as the brief asks. Google's German
+   guideline page prefers „Über Google anmelden“ but allows localized
+   labels. The Google "G" was cut from Google's 2026 asset kit with Chromium
+   (transparent PNG at 1x, 2x and 3x).
+10. **Cancel is reported.** A canceled provider dialog or `access_denied` on
+    the return URL shows "Anmeldung abgebrochen", as the brief asks.
+    Supabase's examples treat it as silent.

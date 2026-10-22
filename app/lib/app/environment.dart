@@ -14,4 +14,19 @@ abstract final class Environment() {
   /// Public web origin for invite links from the mobile apps; empty shows
   /// only the code.
   static const appUrl = String.fromEnvironment('APP_URL');
+
+  /// Google OAuth "Web application" client ID. Supabase verifies ID tokens
+  /// against it and native sign-in passes it as the server client ID; empty
+  /// hides the Google button.
+  static const googleWebClientId = String.fromEnvironment(
+    'GOOGLE_WEB_CLIENT_ID',
+  );
+
+  /// Google OAuth "iOS" client ID; empty hides the Google button on iOS.
+  static const googleIosClientId = String.fromEnvironment(
+    'GOOGLE_IOS_CLIENT_ID',
+  );
+
+  /// Whether the Supabase project has Sign in with Apple configured.
+  static const signInWithApple = bool.fromEnvironment('SIGN_IN_WITH_APPLE');
 }

@@ -1,21 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { addField, newEmail, password, signUpWithHousehold, typeInto } from './helpers';
-
-const mailpit = process.env.MAILPIT_URL ?? 'http://127.0.0.1:54324';
-
-async function latestLinkFor(email: string): Promise<string> {
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const res = await fetch(`${mailpit}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`);
-    const { messages } = await res.json() as { messages: { ID: string }[] };
-    if (messages.length > 0) {
-      const message = await (await fetch(`${mailpit}/api/v1/message/${messages[0].ID}`)).json() as { Text: string };
-      const link = message.Text.match(/https?:\/\/\S+\/auth\/v1\/verify\S+/)?.[0];
-      if (link) return link;
-    }
-    await new Promise((r) => setTimeout(r, 500));
-  }
-  throw new Error(`no magic link mail for ${email}`);
-}
+import { addField, latestLinkFor, newEmail, password, signUpWithHousehold, typeInto } from './helpers';
 
 test('email and password: sign out and back in', async ({ page }) => {
   const email = newEmail('pw');

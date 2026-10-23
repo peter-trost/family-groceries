@@ -1,20 +1,11 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { expect, type Locator, type Page } from '@playwright/test';
-import { execSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import WebSocket from 'ws';
+import { fakeOidcPort, stack } from '../stack';
 
-/** The local stack's settings, from the environment or `supabase status`. */
-function localStack(): { url: string; key: string; mailpit: string } {
-  const { SUPABASE_URL: url, SUPABASE_PUBLISHABLE_KEY: key, MAILPIT_URL: mailpit } = process.env;
-  if (url && key) return { url, key, mailpit: mailpit ?? 'http://127.0.0.1:54324' };
-  const status = execSync('supabase status -o env', { cwd: '..', encoding: 'utf8' });
-  const read = (name: string) => status.match(new RegExp(`^${name}="(.*)"$`, 'm'))?.[1];
-  return { url: read('API_URL')!, key: read('PUBLISHABLE_KEY')!, mailpit: read('MAILPIT_URL')! };
-}
-
-export const { url: supabaseUrl, key: publishableKey, mailpit } = localStack();
+export const { url: supabaseUrl, key: publishableKey, mailpit } = stack;
 export const functionsUrl = `${supabaseUrl}/functions/v1`;
 
 export const password = 'test-password-123';
@@ -49,10 +40,14 @@ export const tickBox = (page: Page, name: string) => page.getByRole('checkbox', 
  * insertText (not type) because synthetic key events drop umlauts.
  */
 export async function typeInto(field: Locator, text: string): Promise<void> {
-  await field.click();
-  await expect(field).toBeFocused();
-  await field.page().keyboard.press('ControlOrMeta+a');
-  await field.page().keyboard.insertText(text);
+  // Under load the editor can drop an insert made while it is still taking focus; retype then.
+  await expect(async () => {
+    await field.click();
+    await expect(field).toBeFocused();
+    await field.page().keyboard.press('ControlOrMeta+a');
+    await field.page().keyboard.insertText(text);
+    await expect(field).toHaveValue(text, { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
 }
 
 export async function signUp(page: Page, email: string, path = '/'): Promise<void> {
@@ -117,7 +112,7 @@ export function anonClient(): SupabaseClient {
 export async function fakeIdToken(claims: {
   email: string; nonce?: string; aud?: string; emailVerified?: boolean; name?: string;
 }): Promise<string> {
-  const res = await fetch('http://127.0.0.1:54399/mint', {
+  const res = await fetch(`http://127.0.0.1:${fakeOidcPort}/mint`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(claims),
   });
   return ((await res.json()) as { id_token: string }).id_token;

@@ -10,7 +10,7 @@ if [[ "${1:-}" == "--stop" ]]; then
 fi
 
 supabase_up
-log "Supabase API $SUPABASE_URL, Mailpit http://127.0.0.1:54324"
+log "Supabase API $SUPABASE_URL, Mailpit $MAILPIT_URL"
 cd "$REPO_ROOT/app"
 # shellcheck disable=SC2046
 exec flutter run -d web-server --web-hostname 127.0.0.1 --web-port "${WEB_PORT:-3000}" $(flutter_defines)

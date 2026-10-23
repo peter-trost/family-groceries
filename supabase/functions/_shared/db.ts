@@ -39,6 +39,21 @@ export async function householdOf(userId: string): Promise<string | null> {
   return row?.household_id ?? null;
 }
 
+/** Whether the Supabase session behind a JWT still exists for this user and OAuth client. */
+export async function sessionActive(
+  session: { id: string; userId: string; clientId: string | null },
+): Promise<boolean> {
+  const sql = db();
+  const [row] = await sql<{ active: boolean }[]>`
+    select exists (
+      select from auth.sessions s
+      where s.id = ${session.id}::uuid and s.user_id = ${session.userId}::uuid
+        and s.oauth_client_id::text is not distinct from ${session.clientId}
+        and (s.not_after is null or s.not_after > now())
+    ) as active`;
+  return row.active;
+}
+
 export async function resolvePersonalAccessToken(
   tokenHash: string,
 ): Promise<{ userId: string; householdId: string } | null> {

@@ -221,7 +221,9 @@ with the web app URL.
   authorize, token, userinfo, plus `POST /mint` for test tokens). Its key
   comes from a fixed seed, so every copy is interchangeable.
   `supabase/config.toml` enables `[auth.external.keycloak]` pointing at it
-  through `host.docker.internal:54399`. **Never enable this provider on the
+  through `host.docker.internal:54399`. Playwright starts the fake on the
+  port in that URL (`e2e/stack.ts`), so a checkout on another port block
+  sets it to `<prefix>99`. **Never enable this provider on the
   hosted project.** The tests cover a matching nonce, a wrong or missing
   nonce, a foreign audience, linking to an existing password account with its
   household, provider first then magic link, and two provider sign-ins with

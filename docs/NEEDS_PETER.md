@@ -190,6 +190,10 @@ Still needed:
    `/family-groceries`), set the authorization path to
    `/family-groceries/oauth/consent` in Dashboard → Authentication → OAuth
    Server (or `oauth_server_authorization_path` via the API).
+   After deploying (job 3b): connect a client, then disconnect it under
+   Menü → Zugänge. Its next MCP call must get `401`. The function reads
+   `auth.sessions` through `SUPABASE_DB_URL` for this; a `500` instead
+   would mean the hosted database role lacks that read.
 3. **Optional:** if a browser-based MCP client on another site should connect,
    set the edge function secret `MCP_ALLOWED_ORIGIN_HOSTS` to its hostname(s),
    comma-separated (`supabase secrets set MCP_ALLOWED_ORIGIN_HOSTS=…`).

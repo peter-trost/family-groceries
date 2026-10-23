@@ -1,0 +1,72 @@
+[mcp-inspector-smoke] user inspector-1792737409@example.test, token fgp_…4uHI, endpoint http://127.0.0.1:54621/functions/v1/mcp
+[mcp-inspector-smoke] no token -> 401 with the metadata pointer
+HTTP/1.1 401 Unauthorized
+www-authenticate: Bearer resource_metadata="http://127.0.0.1:54621/functions/v1/mcp/.well-known/oauth-protected-resource", scope="openid email"
+[mcp-inspector-smoke] inspector: --method tools/list
+list_items, add_items, tick_items, move_item, list_categories, list_stores
+[mcp-inspector-smoke] inspector: --method tools/call --tool-name add_items --tool-arg items=[{"name":"Hafermilch"},{"name":"2 Gurken"},{"name":"Zahnpasta","store":"dm"}]
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"added\": [\n    {\n      \"id\": \"d03113de-4b5e-4093-b808-c70593edcb49\",\n      \"name\": \"Hafermilch\",\n      \"quantity\": null,\n      \"category\": \"Kühlregal\",\n      \"store\": null\n    },\n    {\n      \"id\": \"4d11a99b-ee1e-4ab5-9fb9-06c8114e6e8a\",\n      \"name\": \"Gurken\",\n      \"quantity\": \"2\",\n      \"category\": \"Obst & Gemüse\",\n      \"store\": null\n    },\n    {\n      \"id\": \"17589f03-31e9-4faf-96b7-8f12b4246561\",\n      \"name\": \"Zahnpasta\",\n      \"quantity\": null,\n      \"category\": \"👶 Drogerie\",\n      \"store\": \"dm\"\n    }\n  ],\n  \"alreadyOnList\": []\n}"
+    }
+  ]
+}
+[mcp-inspector-smoke] inspector: --method tools/call --tool-name add_items --tool-arg items=[{"name":"Gurke"}]
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"added\": [],\n  \"alreadyOnList\": [\n    {\n      \"id\": \"4d11a99b-ee1e-4ab5-9fb9-06c8114e6e8a\",\n      \"name\": \"Gurken\",\n      \"quantity\": \"2\",\n      \"category\": \"Obst & Gemüse\",\n      \"store\": null\n    }\n  ]\n}"
+    }
+  ]
+}
+[mcp-inspector-smoke] inspector: --method tools/call --tool-name move_item --tool-arg item=hafermilch --tool-arg category=Getränke
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"id\": \"d03113de-4b5e-4093-b808-c70593edcb49\",\n  \"name\": \"Hafermilch\",\n  \"quantity\": null,\n  \"category\": \"Getränke\",\n  \"store\": null\n}"
+    }
+  ]
+}
+[mcp-inspector-smoke] inspector: --method tools/call --tool-name tick_items --tool-arg items=["Gurken"]
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"ticked\": [\n    {\n      \"id\": \"4d11a99b-ee1e-4ab5-9fb9-06c8114e6e8a\",\n      \"name\": \"Gurken\",\n      \"quantity\": \"2\",\n      \"category\": \"Obst & Gemüse\",\n      \"store\": null\n    }\n  ],\n  \"notFound\": []\n}"
+    }
+  ]
+}
+[mcp-inspector-smoke] inspector: --method tools/call --tool-name list_items --tool-arg store=dm
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"store\": \"dm\",\n  \"category\": null,\n  \"items\": [\n    {\n      \"id\": \"17589f03-31e9-4faf-96b7-8f12b4246561\",\n      \"name\": \"Zahnpasta\",\n      \"quantity\": null,\n      \"category\": \"👶 Drogerie\",\n      \"store\": \"dm\"\n    },\n    {\n      \"id\": \"d03113de-4b5e-4093-b808-c70593edcb49\",\n      \"name\": \"Hafermilch\",\n      \"quantity\": null,\n      \"category\": \"Getränke\",\n      \"store\": null\n    }\n  ]\n}"
+    }
+  ]
+}
+[mcp-inspector-smoke] inspector: --method tools/call --tool-name list_categories
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "[\n  {\n    \"id\": \"b839bc5a-0f8f-4224-b3e3-5bc9ff7245fd\",\n    \"name\": \"Obst & Gemüse\",\n    \"sort_order\": 10\n  },\n  {\n    \"id\": \"207bb539-c811-4774-95b7-c92c28459908\",\n    \"name\": \"Brot & Backwaren\",\n    \"sort_order\": 20\n  },\n  {\n    \"id\": \"12c4b0c8-83ae-46b4-a014-8bc734b0e8a4\",\n    \"name\": \"Kühlrega
+[mcp-inspector-smoke] inspector: --method tools/call --tool-name list_stores
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "[\n  {\n    \"id\": \"497380f9-3bcb-4d59-84c3-884634d77bb7\",\n    \"name\": \"dm\",\n    \"sort_order\": 10\n  },\n  {\n    \"id\": \"19dda64d-2a43-4d40-8ddb-73abf848bef9\",\n    \"name\": \"Lidl\",\n    \"sort_order\": 20\n  },\n  {\n    \"id\": \"bc3e8f36-3b75-4650-bad7-b475580300c4\",\n    \"name\": \"Edeka\",\n    \"sort_order\": 30\n  }\n]"
+    }
+  ]
+}
+[mcp-inspector-smoke] revoke the token, then the same call again
+HTTP/1.1 401 Unauthorized
+www-authenticate: Bearer resource_metadata="http://127.0.0.1:54621/functions/v1/mcp/.well-known/oauth-protected-resource", scope="openid email", error="invalid_token", error_description="Token unbekannt oder widerrufen."
+[mcp-inspector-smoke] inspector: --method tools/list
+{"error":{"code":"auth_required","message":"Interactive OAuth requires a TTY on stdin or stderr (or MCP_AUTO_OPEN_ENABLED=true). For CI/non-interactive runs use --stored-auth-only."}}
+[mcp-inspector-smoke] revoked token refused; smoke test passed

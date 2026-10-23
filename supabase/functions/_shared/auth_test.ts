@@ -6,6 +6,8 @@ const ISSUER = 'http://127.0.0.1:54621/auth/v1';
 const USER = '11111111-1111-1111-1111-111111111111';
 const HOUSEHOLD = '22222222-2222-2222-2222-222222222222';
 const PAT = 'fgp_valid-token';
+const SESSION = '44444444-4444-4444-4444-444444444444';
+const ENDED = '55555555-5555-5555-5555-555555555555';
 
 const { publicKey, privateKey } = await generateKeyPair('ES256');
 const jwks = createLocalJWKSet({
@@ -17,6 +19,7 @@ const deps: AuthDeps = {
   issuer: () => Promise.resolve({ issuer: ISSUER, jwksUri: new URL('http://unused') }),
   jwks: () => jwks,
   householdOf: (userId) => Promise.resolve(userId === USER ? HOUSEHOLD : null),
+  sessionActive: ({ id }) => Promise.resolve(id !== ENDED),
   resolvePat: async (hash) =>
     hash === await sha256Hex(PAT) ? { userId: USER, householdId: HOUSEHOLD } : null,
 };
@@ -25,7 +28,7 @@ function token(
   claims: Record<string, unknown> = {},
   opts: { key?: CryptoKey; exp?: string; aud?: string; iss?: string } = {},
 ) {
-  return new SignJWT({ role: 'authenticated', ...claims })
+  return new SignJWT({ role: 'authenticated', session_id: SESSION, ...claims })
     .setProtectedHeader({ alg: 'ES256', kid: 'k1' })
     .setSubject(USER)
     .setIssuer(opts.iss ?? ISSUER)
@@ -54,6 +57,12 @@ Deno.test('an app session token authenticates as a session', async () => {
     householdId: HOUSEHOLD,
     via: 'session',
   });
+});
+
+Deno.test('a JWT whose session ended (app disconnected, signed out) is invalid', async () => {
+  await failsWith(bearer(await token({ client_id: 'c-1', session_id: ENDED })), 'invalid_token');
+  await failsWith(bearer(await token({ session_id: ENDED })), 'invalid_token');
+  await failsWith(bearer(await token({ session_id: undefined })), 'invalid_token');
 });
 
 Deno.test('a personal access token authenticates by its hash', async () => {
@@ -90,7 +99,7 @@ Deno.test('tokens that fail signature, expiry, audience, issuer or role checks a
 
 Deno.test('a valid user without a household is refused with 403', async () => {
   const req = bearer(
-    await new SignJWT({ role: 'authenticated' })
+    await new SignJWT({ role: 'authenticated', session_id: SESSION })
       .setProtectedHeader({ alg: 'ES256', kid: 'k1' })
       .setSubject('33333333-3333-3333-3333-333333333333')
       .setIssuer(ISSUER)

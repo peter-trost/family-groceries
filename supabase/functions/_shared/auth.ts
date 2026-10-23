@@ -2,9 +2,12 @@
 // Accepts three credentials, all scoped to the caller's household:
 //   oauth   - an access token Supabase's OAuth 2.1 server issued to a client (has client_id);
 //   session - the app's own Supabase session token;
+// Both JWT kinds are accepted only while their Supabase session exists, so disconnecting an app
+// in "Zugänge" (revokeGrant deletes its sessions) or signing out cuts access off at once instead
+// of when the access token expires.
 //   pat     - a personal access token (fgp_...), checked by hash against the database.
 import { createRemoteJWKSet, type JWTPayload, jwtVerify } from 'jose';
-import { householdOf, resolvePersonalAccessToken } from './db.ts';
+import { householdOf, resolvePersonalAccessToken, sessionActive } from './db.ts';
 
 export type Auth =
   & { userId: string; householdId: string }
@@ -32,6 +35,9 @@ export type AuthDeps = {
   issuer: () => Promise<Issuer>;
   jwks: (issuer: Issuer) => Parameters<typeof jwtVerify>[1];
   householdOf: (userId: string) => Promise<string | null>;
+  sessionActive: (
+    session: { id: string; userId: string; clientId: string | null },
+  ) => Promise<boolean>;
   resolvePat: (tokenHash: string) => Promise<{ userId: string; householdId: string } | null>;
 };
 
@@ -50,17 +56,22 @@ export async function authenticate(req: Request, deps: AuthDeps = defaultDeps): 
   }
 
   const claims = await verifyJwt(token, deps);
-  const householdId = await deps.householdOf(claims.sub);
+  const clientId = typeof claims.client_id === 'string' ? claims.client_id : null;
+  const [active, householdId] = await Promise.all([
+    deps.sessionActive({ id: claims.session_id, userId: claims.sub, clientId }),
+    deps.householdOf(claims.sub),
+  ]);
+  if (!active) throw new AuthError('invalid_token', 'Sitzung beendet oder Zugang getrennt.');
   if (!householdId) throw new AuthError('no_household', 'Dieses Konto gehört zu keinem Haushalt.');
-  return typeof claims.client_id === 'string'
-    ? { userId: claims.sub, householdId, via: 'oauth', clientId: claims.client_id }
+  return clientId
+    ? { userId: claims.sub, householdId, via: 'oauth', clientId }
     : { userId: claims.sub, householdId, via: 'session' };
 }
 
 async function verifyJwt(
   token: string,
   deps: AuthDeps,
-): Promise<JWTPayload & { sub: string }> {
+): Promise<JWTPayload & { sub: string; session_id: string }> {
   const issuer = await deps.issuer();
   try {
     const { payload } = await jwtVerify(token, deps.jwks(issuer), {
@@ -68,11 +79,13 @@ async function verifyJwt(
       // Supabase issues user and OAuth access tokens for this audience; it ignores RFC 8707.
       audience: 'authenticated',
       algorithms: ['ES256', 'RS256'],
-      requiredClaims: ['sub', 'exp'],
+      requiredClaims: ['sub', 'exp', 'session_id'],
     });
-    const { sub, role } = payload;
-    if (typeof sub !== 'string' || role !== 'authenticated') throw new Error('not a user token');
-    return { ...payload, sub };
+    const { sub, role, session_id } = payload;
+    if (typeof sub !== 'string' || typeof session_id !== 'string' || role !== 'authenticated') {
+      throw new Error('not a user token');
+    }
+    return { ...payload, sub, session_id };
   } catch (e) {
     throw new AuthError('invalid_token', `Token ungültig: ${(e as Error).message}`);
   }
@@ -108,5 +121,6 @@ const defaultDeps: AuthDeps = {
   issuer: discoverIssuer,
   jwks: (issuer) => (jwksCache ??= createRemoteJWKSet(issuer.jwksUri)),
   householdOf,
+  sessionActive,
   resolvePat: resolvePersonalAccessToken,
 };

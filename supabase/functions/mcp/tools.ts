@@ -54,15 +54,17 @@ export function buildServer(auth: Auth): McpServer {
     title: 'Einträge hinzufügen',
     description:
       'Setzt einen oder mehrere Einträge auf die Liste. Jeder Eintrag wird automatisch einer ' +
-      'Kategorie zugeordnet (lernt aus Korrekturen). Was schon auf der Liste steht, wird nicht ' +
-      'doppelt angelegt und unter "alreadyOnList" gemeldet. Mengen gehören in "quantity", nicht ' +
-      'in den Namen: "2 Gurken" → name "Gurken", quantity "2".',
+      'Kategorie zugeordnet; dabei gelten zuerst die Korrekturen des Haushalts (move_item oder in ' +
+      'der App), dann ein Wörterbuch. Ohne "store" bekommt er den Laden, in dem er zuletzt ' +
+      'gekauft wurde. Was schon auf der Liste steht ("Gurke" = "2 Gurken"), wird nicht doppelt ' +
+      'angelegt und unter "alreadyOnList" gemeldet. Mengen gehören in "quantity": "2 Gurken" → ' +
+      'name "Gurken", quantity "2".',
     inputSchema: z.object({
       items: z.array(z.object({
         name: z.string().min(1).max(120).describe('Was gekauft werden soll, z. B. "Milch"'),
         quantity: z.string().max(40).optional().describe('Menge, z. B. "2" oder "500 g"'),
         category: categoryName.optional().describe(
-          'Nur angeben, wenn der Nutzer eine Kategorie ausdrücklich nennt',
+          'Nur angeben, wenn der Nutzer eine Kategorie ausdrücklich nennt; wird wie eine Korrektur gemerkt',
         ),
         store: storeName.optional().describe(
           'Nur angeben, wenn es in einem bestimmten Laden sein soll',
@@ -75,7 +77,8 @@ export function buildServer(auth: Auth): McpServer {
     title: 'Einträge abhaken',
     description:
       'Hakt einen oder mehrere Einträge als gekauft ab; sie verschwinden von der Liste und ' +
-      'landen unter "Zuletzt gekauft". Nicht gefundene Namen werden unter "notFound" gemeldet.',
+      'landen unter "Zuletzt gekauft". Nicht gefundene oder schon abgehakte Einträge werden ' +
+      'unter "notFound" gemeldet, ein zweiter Aufruf ändert also nichts.',
     inputSchema: z.object({ items: z.array(itemRef).min(1).max(50) }),
     annotations: { destructiveHint: false, idempotentHint: true },
   }, ({ items }) => run(auth, (tx) => tickItems(tx, h, items))());
@@ -83,9 +86,9 @@ export function buildServer(auth: Auth): McpServer {
   server.registerTool('move_item', {
     title: 'Eintrag verschieben',
     description:
-      'Ändert die Kategorie und/oder den Laden eines Eintrags. Eine geänderte Kategorie ist eine ' +
-      'Korrektur, aus der die automatische Einsortierung lernt. store: null entfernt den Laden ' +
-      '(dann in jedem Laden kaufbar).',
+      'Ändert die Kategorie und/oder den Laden eines Eintrags. Beides merkt sich der Haushalt: ' +
+      'derselbe Eintrag landet beim nächsten Hinzufügen in dieser Kategorie und diesem Laden. ' +
+      'store: null entfernt den Laden (dann in jedem Laden kaufbar) und vergisst ihn.',
     inputSchema: z.object({
       item: itemRef,
       category: categoryName.optional(),

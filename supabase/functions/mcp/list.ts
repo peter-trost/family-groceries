@@ -101,9 +101,11 @@ export async function listItems(
 export type NewItem = { name: string; quantity?: string; category?: string; store?: string };
 
 /**
- * Adds items, skipping names already on the active list (matched by `item_name_key`, as `add_items`
- * and Siri do: "Gurke" is "2 Gurken"). Items without a category go through the items trigger and
- * so through classify_item and the store memory, like everything the app adds.
+ * Adds items through public.add_items, the shared add path (also Siri's): it parses a quantity
+ * out of the name, classifies with the household's learned corrections, takes the remembered
+ * store, and returns the existing row for a name already on the list ("Gurke" is "2 Gurken").
+ * An explicit quantity replaces the parsed one. An explicit category is applied as an update,
+ * so the classifier learns it like a correction in the app.
  */
 export async function addItems(
   tx: Tx,
@@ -113,31 +115,30 @@ export async function addItems(
   const [cats, shops, active] = await Promise.all([
     categories(tx, household),
     stores(tx, household),
-    tx<{ id: string; key: string }[]>`
-      select id, public.item_name_key(name) as key from public.items
-      where household_id = ${household} and status = 'active'`,
+    activeItems(tx, household),
   ]);
-  const onList = new Map(active.map((i) => [i.key, i.id]));
+  const seen = new Set(active.map((i) => i.id));
   const added: string[] = [];
   const existing: string[] = [];
   for (const item of wanted) {
-    const name = item.name.trim();
-    if (name === '') continue;
-    const [{ key }] = await tx<{ key: string }[]>`select public.item_name_key(${name}) as key`;
-    const already = onList.get(key);
-    if (already) {
-      existing.push(already);
-      continue;
-    }
     const category = item.category ? resolve(cats, item.category, 'Kategorie').id : null;
     const store = item.store ? resolve(shops, item.store, 'Laden').id : null;
-    const [row] = await tx<{ id: string }[]>`
-      insert into public.items (household_id, name, quantity, category_id, store_id)
-      values (${household}, ${name.slice(0, 120)}, ${item.quantity?.trim().slice(0, 40) || null},
-              ${category}, ${store})
-      returning id`;
-    onList.set(key, row.id);
+    const [row] = await tx<{ id: string; category_id: string }[]>`
+      select id, category_id from public.add_items(${household}, array[${item.name}], ${store})`;
+    if (!row) continue;
+    if (seen.has(row.id)) {
+      existing.push(row.id);
+      continue;
+    }
+    seen.add(row.id);
     added.push(row.id);
+    const quantity = item.quantity?.trim();
+    if (quantity) {
+      await tx`update public.items set quantity = ${quantity} where id = ${row.id}`;
+    }
+    if (category && category !== row.category_id) {
+      await tx`update public.items set category_id = ${category} where id = ${row.id}`;
+    }
   }
   const rows = await itemsById(tx, [...added, ...existing]);
   const pick = (ids: string[]) => ids.map((id) => rows.find((r) => r.id === id)!);

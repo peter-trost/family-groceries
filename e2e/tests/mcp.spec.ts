@@ -11,6 +11,17 @@ type Item = { id: string; name: string; quantity: string | null; category: strin
 
 const metadataUrl = `${mcpUrl}/.well-known/oauth-protected-resource`;
 
+const toolsList = (token: string) =>
+  fetch(mcpUrl, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+  });
+
 // Under heavy load the SDK client sometimes loses a request to the edge runtime
 // ("SdkHttpError: Error POSTing to endpoint" with no response); one retry keeps
 // ci-ok from flapping on that, while a real failure still fails twice.
@@ -106,6 +117,57 @@ test('MCP over OAuth 2.1: discovery, registration, consent with PKCE, then tools
   await app.getByRole('menuitem', { name: 'Zugänge' }).click();
   await expect(app.getByText('Claude (E2E)').first()).toBeVisible();
   await screenshot(app, 'mcp-04-settings-connected-app');
+
+  // Disconnecting cuts the client off at once, although its access token has not expired.
+  expect(claims.exp * 1000 - Date.now(), 'the access token is still far from expiry').toBeGreaterThan(30 * 60_000);
+  await call(client, 'list_items', {});
+  await app.getByRole('button', { name: 'Claude (E2E) trennen' }).click();
+  await app.getByRole('button', { name: 'Trennen', exact: true }).click();
+  await expect(app.getByText('Noch keine App verbunden.')).toBeVisible();
+  await screenshot(app, 'mcp-07-settings-after-disconnect');
+  const afterDisconnect = await toolsList(accessToken);
+  expect(afterDisconnect.status, 'the next call after disconnecting gets 401').toBe(401);
+  expect(afterDisconnect.headers.get('www-authenticate')).toContain('error="invalid_token"');
+  await expect(client.callTool({ name: 'list_items', arguments: {} }), 'the connected SDK client is cut off too')
+    .rejects.toThrow();
+  const refreshed = await fetch(`${issuer}/oauth/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: provider.saved!.refresh_token!,
+      client_id: provider.client!.client_id,
+    }),
+  });
+  expect(refreshed.ok, 'the refresh token is revoked as well').toBe(false);
+});
+
+test('a category or store corrected over MCP is learned and used on the next MCP add', async ({ browser }) => {
+  const page = await (await browser.newContext()).newPage();
+  await signUpWithHousehold(page, newEmail('learn'));
+  const client = await connectWithToken(await createTokenInSettings(page, 'Lernen'));
+
+  const first = await call<{ added: Item[] }>(client, 'add_items', { items: [{ name: 'Hafermilch' }] });
+  expect(first.added.map((i) => [i.category, i.store])).toEqual([['Kühlregal', null]]);
+  await call(client, 'move_item', { item: 'Hafermilch', category: 'Getränke', store: 'Lidl' });
+  await call(client, 'tick_items', { items: ['Hafermilch'] });
+
+  const again = await call<{ added: Item[]; alreadyOnList: Item[] }>(client, 'add_items', {
+    items: [{ name: 'hafermilch' }, { name: '2 Gurken' }, { name: 'Gurke' }],
+  });
+  expect(again.added.map((i) => [i.name, i.quantity, i.category, i.store])).toEqual([
+    ['hafermilch', null, 'Getränke', 'Lidl'],
+    ['Gurken', '2', 'Obst & Gemüse', null],
+  ]);
+  expect(again.alreadyOnList.map((i) => i.name), '"Gurke" is "2 Gurken"').toEqual(['Gurken']);
+
+  const named = await call<{ added: Item[] }>(client, 'add_items', {
+    items: [{ name: 'Zahnpasta', category: 'Getränke', quantity: '3' }],
+  });
+  expect(named.added.map((i) => [i.category, i.quantity])).toEqual([['Getränke', '3']]);
+  await call(client, 'tick_items', { items: ['Zahnpasta'] });
+  const remembered = await call<{ added: Item[] }>(client, 'add_items', { items: [{ name: 'Zahnpasta' }] });
+  expect(remembered.added[0].category, 'an explicit category is remembered like a correction').toBe('Getränke');
 });
 
 test('denying consent sends access_denied back to the client', async ({ browser, baseURL }) => {
@@ -182,16 +244,8 @@ test('personal access token: create in settings, use over MCP in both protocol e
   await expect(page.getByRole('button', { name: 'Siri widerrufen' })).toHaveCount(0);
   await screenshot(page, 'mcp-06-pat-revoked');
 
-  const revoked = await fetch(mcpUrl, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${token}`,
-      'content-type': 'application/json',
-      accept: 'application/json, text/event-stream',
-    },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
-  });
-  expect(revoked.status).toBe(401);
+  const revoked = await toolsList(token);
+  expect(revoked.status, 'the first call after revoking gets 401').toBe(401);
   expect(revoked.headers.get('www-authenticate')).toContain('error="invalid_token"');
   await expect(connectWithToken(token)).rejects.toThrow();
 });

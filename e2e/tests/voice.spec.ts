@@ -78,6 +78,16 @@ test('errors come back as German sentences Siri can speak', async ({ page }) => 
   expect(JSON.parse(nothing.body).speech).toMatch(/^Ich habe nichts verstanden/);
 });
 
+test('an app session token stops working at the voice endpoint once the session signs out', async ({ page }) => {
+  const email = newEmail('voice-signout');
+  await signUpWithHousehold(page, email);
+  const api = await apiAs(email);
+  const token = (await api.auth.getSession()).data.session!.access_token;
+  expect((await say(token, 'Milch')).status).toBe(200);
+  await api.auth.signOut();
+  expect((await say(token, 'Butter')).status, 'the unexpired token of a signed-out session gets 401').toBe(401);
+});
+
 test('Siri with a personal access token: add, then revoked is 401', async ({ page }) => {
   const email = newEmail('voice-pat');
   await signUpWithHousehold(page, email);

@@ -159,11 +159,21 @@ Deno.test('down --dry-run kills nothing, and down keeps the evidence directory',
   assertEquals(sh.killed, []);
   assertStringIncludes((dry.json?.wouldDo as string[]).join('\n'), 'Xvfb :5481');
 
+  sh.files.set('/home/t/fg-evidence/run-x', '');
   const real = await fg(['down'], sh);
   assertEquals(real.code, 0);
   assertEquals(sh.killed.map(([pid]) => pid).sort(), [11, 12]);
   assert(!sh.removed.some((p) => p.includes('evidence')), 'evidence is never removed');
   assertEquals(real.json?.evidenceDir, '/home/t/fg-evidence/run-x');
+  assertEquals(real.json?.evidenceKept, true);
+});
+
+Deno.test('down on a run that captured nothing names no evidence directory', async () => {
+  const sh = new FakeShell();
+  sh.files.set('/home/t/.cache/fg/548/state.json', JSON.stringify({ run: 'run-old', clients: {}, recordings: {}, builds: {} }));
+  const { code, json } = await fg(['down', '--dry-run'], sh);
+  assertEquals(code, 0);
+  assertEquals(json?.evidenceDir, null);
 });
 
 Deno.test('db query runs read-only unless --write, and --as applies the user through RLS', async () => {
@@ -183,12 +193,36 @@ Deno.test('db query runs read-only unless --write, and --as applies the user thr
   assertStringIncludes(sh.stdins.at(-1)!, '"sub":"u1"');
 });
 
-Deno.test('a write in a read-only session fails with a hint to use --write', async () => {
+Deno.test('a write without --write fails as read_only before reaching the database', async () => {
+  for (const statement of ["update items set name = 'x'", 'delete from items', '  DELETE FROM items where true']) {
+    const sh = new FakeShell(() => ({ code: 0, stdout: '[]' }));
+    const { code, json } = await fg(['db', 'query', statement], sh);
+    assertEquals(code, 1, statement);
+    assertEquals(error(json).code, 'read_only');
+    assertStringIncludes(error(json).hint, '--write');
+    assertEquals(sh.calls.filter((c) => c[0] === 'docker'), [], 'nothing ran');
+  }
+});
+
+Deno.test('a write the guard misses is still stopped by the read-only session', async () => {
   const sh = new FakeShell(() => ({ code: 1, stdout: '', stderr: 'ERROR:  cannot execute UPDATE in a read-only transaction' }));
-  const { code, json } = await fg(['db', 'query', "update items set name = 'x'"], sh);
+  const { code, json } = await fg(['db', 'query', "with x as (update items set name = 'x' returning 1) select * from x"], sh);
   assertEquals(code, 1);
   assertEquals(error(json).code, 'read_only');
   assertStringIncludes(error(json).hint, '--write');
+});
+
+Deno.test('doctor speaks the common contract: ok:false, code unhealthy, every check with a fix', async () => {
+  const sh = new FakeShell(() => ({ code: 1, stdout: '', stderr: 'Cannot connect to the Docker daemon' }));
+  const { code, json } = await fg(['doctor'], sh);
+  assertEquals(code, 1);
+  assertEquals(json?.ok, false);
+  assertEquals(error(json).code, 'unhealthy');
+  const checks = (json?.error as { checks: { name: string; ok: boolean; fix?: string }[] }).checks;
+  const docker = checks.find((c) => c.name === 'docker')!;
+  assertEquals(docker.ok, false);
+  assertStringIncludes(docker.fix!, 'dockerd');
+  assert(!('healthy' in (json ?? {})), 'one success signal: ok');
 });
 
 Deno.test('planned perf commands fail with not_implemented and an alternative', async () => {

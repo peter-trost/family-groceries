@@ -6,7 +6,7 @@ This directory is the maintained source for verifying the user-facing behavior o
 
 - Set your port block: `export FG_PORT_PREFIX=<prefix>` (548 for job 05; never 543 on the shared box, which belongs to job 1).
 - Run `fg up --clients peter,lea`. It exits 0 when the stack, the seed and both apps are usable.
-- Run `fg doctor` and require `"healthy": true`.
+- Run `fg doctor` and require `"ok": true` (exit code 0). On a failure it prints `"ok": false` with `error.code` `unhealthy` and every check, each failed one with its `fix`.
 - Sign both apps in: `fg login peter` and `fg login lea`. Both users are in the household "Familie Test", password `test-password-123`.
 - The seed has no items. Recipes create their own and mark them bought afterwards.
 - Never drive an instance that this run did not start.

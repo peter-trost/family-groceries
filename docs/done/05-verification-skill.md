@@ -134,3 +134,27 @@ cd .cursor/skills/verify-family-groceries/cli && deno test -A
 - Not mapped: Google and Apple sign-in (01b) and MCP, consent and tokens
   (03) are on main but were outside this seed. Stores (02) and voice (04)
   are in flight. The board asks each owner to add its `features/*.md`.
+
+## Review 0 fixes (2026-10-23)
+
+- **Must fix:** `features/README.md` told agents to require `"healthy": true`
+  from `fg doctor`. That field existed only on success, while every other
+  command signals success with `"ok": true`. Doctor now uses only the common
+  contract: `"ok": true` with exit 0, or `"ok": false` with `error.code`
+  `unhealthy` and `error.checks` (each failed check has a `fix`). The
+  README and SKILL.md say so, and a test pins the failure shape.
+- `fg db query` without `--write` now rejects any statement that is not a
+  query (`delete`, `update`, …) with code `read_only` and a hint to add
+  `--write`, before reaching the database. Previously a `delete` came back
+  as a syntax error. The read-only session still catches writes hidden in
+  a `WITH`.
+- `fg down` names `evidenceDir` only when that directory exists (`null`
+  otherwise), so it no longer points at an old run.
+- SKILL.md says where review evidence goes: `docs/screenshots/<job>/` in
+  the PR, with the full run kept in `$FG_EVIDENCE_DIR`.
+- Verified: 20 CLI tests (the new `read_only` test fails with the guard
+  removed). Live on ports 548xx: `fg up` → `fg doctor` (`ok: true`, 18
+  checks) → `fg db query "delete from items"` (`read_only`) →
+  `journeys/quick-add-live-sync.sh` PASS (lea 259 ms, gone on peter
+  1053 ms) → `fg down` (evidence kept in
+  `~/groceries-ops/evidence/review0-1135/`).

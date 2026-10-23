@@ -163,8 +163,41 @@ jobs:
           bundler-cache: true
       - run: bundle exec fastlane lanes
 
+  # Job 4b: the app's own Kotlin and Swift (the on-device speech check) compile.
+  android-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter build apk --debug
+
+  ios-build:
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter build ios --simulator --debug
+
   ci-ok:
-    needs: [gitleaks, app, functions, database, e2e, fastlane]
+    needs: [gitleaks, app, functions, database, e2e, fastlane, android-build, ios-build]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:

@@ -12,7 +12,7 @@ import 'package:family_groceries/list/list_repository.dart';
 import 'package:family_groceries/list/model.dart';
 import 'package:family_groceries/list/store_layout_screen.dart';
 import 'package:family_groceries/session/session_cubit.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -26,8 +26,14 @@ class const ListScreen({
   /// Overrides the Supabase repository, for tests.
   final ListRepository? repository,
 }) extends StatelessWidget {
-  /// The web build has no on-device recognizer; typing is the fallback.
-  static final Dictation? _dictation = kIsWeb ? null : DeviceDictation();
+  /// Only iOS and Android recognize speech on the device; elsewhere typing
+  /// is the way in.
+  static final Dictation? _dictation =
+      !kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.iOS ||
+              defaultTargetPlatform == TargetPlatform.android)
+      ? DeviceDictation()
+      : null;
 
   @override
   Widget build(BuildContext context) {
@@ -133,23 +139,30 @@ class _ShoppingListState() extends State<ShoppingList> {
     }
     final l10n = AppLocalizations.of(context);
     final cubit = context.read<ListCubit>();
-    if (!await dictation.prepare()) {
+    if (await dictation.prepare() case final problem?) {
       if (mounted) {
-        _snack(l10n.dictationUnavailable);
+        _snack(_dictationProblem(l10n, problem));
       }
       return;
     }
     setState(() => _listening = true);
-    final text = await dictation.listen(
+    final dictated = await dictation.listen(
       onWords: (words) => _input.text = words,
     );
     if (!mounted) {
       return;
     }
     setState(() => _listening = false);
-    if (text == null) {
-      _snack(l10n.dictationNothingHeard);
-      return;
+    final String text;
+    switch (dictated) {
+      case Heard(text: final heard):
+        text = heard;
+      case NothingHeard():
+        _snack(l10n.dictationNothingHeard);
+        return;
+      case Refused(:final problem):
+        _snack(_dictationProblem(l10n, problem));
+        return;
     }
     try {
       final results = await cubit.addSpoken(text);
@@ -169,6 +182,14 @@ class _ShoppingListState() extends State<ShoppingList> {
     }
     _inputFocus.requestFocus();
   }
+
+  static String _dictationProblem(
+    AppLocalizations l10n,
+    DictationProblem problem,
+  ) => switch (problem) {
+    DictationProblem.unavailable => l10n.dictationUnavailable,
+    DictationProblem.noOfflineGerman => l10n.dictationNoOfflineGerman,
+  };
 
   static String _dictationSummary(
     AppLocalizations l10n,

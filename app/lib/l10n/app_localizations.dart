@@ -190,6 +190,12 @@ abstract class AppLocalizations {
   /// **'Spracheingabe ist nicht verfügbar. Erlaube Mikrofon und Spracherkennung in den Einstellungen.'**
   String get dictationUnavailable;
 
+  /// No description provided for @dictationNoOfflineGerman.
+  ///
+  /// In de, this message translates to:
+  /// **'Diktieren geht nur offline, damit deine Stimme auf dem Gerät bleibt. Dafür fehlt hier die deutsche Offline-Spracherkennung. Lade sie in den Systemeinstellungen herunter oder tippe den Eintrag ein.'**
+  String get dictationNoOfflineGerman;
+
   /// No description provided for @dictationNothingHeard.
   ///
   /// In de, this message translates to:

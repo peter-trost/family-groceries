@@ -321,6 +321,15 @@ class SupabaseListRepository(
             _ => null,
           },
         )
+        // The join is confirmed before the server's Postgres listener runs;
+        // "Subscribed to PostgreSQL" says it does, and a resync then picks up
+        // what changed in between. Errors arrive as channelError below.
+        .onSystemEvents((payload) {
+          final Object? system = payload;
+          if (system case {'extension': 'postgres_changes', 'status': 'ok'}) {
+            onStatus(ConnectionStatus.online);
+          }
+        })
         .subscribe(
           (status, _) => onStatus(switch (status) {
             RealtimeSubscribeStatus.subscribed => ConnectionStatus.online,

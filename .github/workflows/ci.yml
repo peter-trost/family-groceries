@@ -71,7 +71,8 @@ jobs:
       - run: deno test --allow-env --allow-net
       # Job 2: the classifier dictionary and the migration generated from it.
       - name: Classifier dictionary matches its migration
-        run: deno fmt --check ../classifier && deno lint ../classifier && deno test --allow-read ../classifier
+        working-directory: supabase/classifier
+        run: deno fmt --check && deno lint && deno test --allow-read
       # Job 07: API-based migration deploy and the per-function import maps.
       - name: Deploy tooling tests
         working-directory: supabase/deploy

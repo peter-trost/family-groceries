@@ -370,6 +370,16 @@ Numbered 3.x so parallel jobs don't collide. Details and sources: `docs/MCP.md`.
   offline no longer signs the user out: the failed refresh is retried by
   supabase_flutter, which keeps the session.
 
+- **Duplicates compare `item_name_key`, the memory keeps `item_key`**
+  (review 0). `item_key` drops every number, so "Windeln Größe 5" counted as
+  already on the list after "Größe 4". `add_items` and MCP now compare
+  `item_name_key` (`item_key` plus the numbers left in the name); the
+  classifier and store memory still use `item_key`, so sizes share a
+  learned category. Migration `20261023070910_item_name_key.sql`.
+- **More than 30 items in one sentence**: the first 30 are added and Siri
+  says the rest was not taken ("Mehr als dreißig auf einmal gehen nicht …");
+  the JSON answer has `truncated: true`.
+
 <!-- job4-release -->
 - **Releases are manual.** The Release workflow runs only from the Actions
   tab, not on every merge like emotely: two users do not need a build per

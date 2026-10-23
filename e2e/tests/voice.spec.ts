@@ -60,6 +60,7 @@ test('the JSON answer names each item with its category', async ({ page }) => {
       { name: 'Eier', quantity: '1 Packung', category: 'Kühlregal', alreadyOnList: false },
       { name: 'Windeln', quantity: null, category: '👶 Drogerie', alreadyOnList: false },
     ],
+    truncated: false,
   });
 });
 
@@ -154,4 +155,25 @@ test('Siri and MCP agree on what is already on the list (plurals fold)', async (
   expect(viaMcp.alreadyOnList.map((i) => i.name)).toEqual(['Gurken']);
   await expect(itemRow(page, 'Gurken 2')).toBeVisible();
   await expect(page.getByRole('button', { name: /^Gurke/ })).toHaveCount(1);
+});
+
+test('a different size or type is a new item, not "already on the list"', async ({ page }) => {
+  const email = newEmail('voice-sizes');
+  await signUpWithHousehold(page, email);
+  const { data } = await (await apiAs(email)).rpc('create_personal_access_token', { p_name: 'Siri' });
+  const [{ token }] = data as { token: string }[];
+
+  expect((await say(token, 'Windeln Größe 4', '?format=text')).body).toBe('Hinzugefügt: Windeln Größe 4.');
+  expect((await say(token, 'Windeln Größe 5 und Mehl Typ 405', '?format=text')).body).toBe(
+    'Hinzugefügt: Windeln Größe 5, Mehl Typ 405.',
+  );
+  const mcp = await connectWithToken(token);
+  const viaMcp = await call<{ added: { name: string }[]; alreadyOnList: { name: string }[] }>(mcp, 'add_items', {
+    items: [{ name: 'Mehl Typ 550' }, { name: 'Windeln Größe 4' }],
+  });
+  expect(viaMcp.added.map((i) => i.name)).toEqual(['Mehl Typ 550']);
+  expect(viaMcp.alreadyOnList.map((i) => i.name)).toEqual(['Windeln Größe 4']);
+  for (const name of ['Windeln Größe 4', 'Windeln Größe 5', 'Mehl Typ 405', 'Mehl Typ 550']) {
+    await expect(itemRow(page, name)).toBeVisible();
+  }
 });

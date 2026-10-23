@@ -1,5 +1,5 @@
 begin;
-select plan(26);
+select plan(27);
 
 create function pg_temp.login(uid uuid) returns void language plpgsql as $$
 begin
@@ -55,6 +55,7 @@ select pg_temp.bought('Windeln Größe 5', array[9]);
 select pg_temp.bought('Brot', array[14, 7, 0]);
 select pg_temp.bought('Eier', array[7, 0]);
 select pg_temp.bought('Butter', array[10]);
+select pg_temp.bought('Zimt', array[400]);
 select pg_temp.item('butter', null, 'active');
 
 -- Gurken with 2 bought 10 days ago, then Gurke with 3 bought 3 days ago.
@@ -166,6 +167,8 @@ select is(
   (select bool_or(pg_temp.due('Mehl', d * interval '1 day')) from unnest(array[0, 1, 7, 20, 40, 80]) as d),
   false, 'one purchase is never due'
 );
+
+select is(pg_temp.names('zimt'), '{}'::text[], 'history older than a year is not used');
 
 -- Members only.
 select pg_temp.login('00000000-0000-0000-0000-0000000000c2');

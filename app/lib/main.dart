@@ -8,7 +8,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
@@ -46,7 +45,7 @@ Future<void> main() async {
           : null,
     ),
   );
-  final cache = DeviceCache(SharedPreferencesAsync());
+  final cache = DeviceCache.onDevice();
   runApp(
     App(session: SessionCubit(client, cache), social: social, cache: cache),
   );

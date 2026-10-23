@@ -3,11 +3,22 @@ import 'dart:convert';
 import 'package:family_groceries/list/list_cache.dart';
 import 'package:family_groceries/session/session_cubit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_linux/shared_preferences_linux.dart';
 
 /// What an offline start needs, in shared preferences: each user's household
 /// and one list snapshot per user and household. A cache: a value that
 /// cannot be read counts as missing, and a failed write is dropped.
 class DeviceCache(final SharedPreferencesAsync _prefs) implements SessionCache {
+  /// On Linux, supabase_flutter's legacy SharedPreferences and
+  /// SharedPreferencesAsync each rewrite the whole file from their own copy,
+  /// so sharing shared_preferences.json loses the session. The other
+  /// platforms ignore Linux options and keep their default store.
+  factory onDevice() => DeviceCache(
+    SharedPreferencesAsync(
+      options: const SharedPreferencesLinuxOptions(fileName: 'device_cache'),
+    ),
+  );
+
   static const _householdPrefix = 'household.';
   static const _listPrefix = 'list.';
 

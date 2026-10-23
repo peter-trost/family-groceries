@@ -87,7 +87,11 @@ class DeviceDictation({SpeechToText? speech}) implements Dictation {
       return DictationProblem.unavailable;
     }
     try {
-      return await offlineGerman.invokeMethod<bool>('offlineGerman') ?? false
+      // A recognizer service that never answers counts as no.
+      return await offlineGerman
+                  .invokeMethod<bool>('offlineGerman')
+                  .timeout(const Duration(seconds: 5)) ??
+              false
           ? null
           : DictationProblem.noOfflineGerman;
     } on Exception {

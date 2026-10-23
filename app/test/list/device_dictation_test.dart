@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:fake_async/fake_async.dart';
 import 'package:family_groceries/list/dictation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
@@ -90,6 +93,21 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(DeviceDictation.offlineGerman, null);
     expect(await dictation.prepare(), DictationProblem.noOfflineGerman);
+  });
+
+  test('a check that never answers counts as no offline German', () {
+    fakeAsync((async) {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            DeviceDictation.offlineGerman,
+            (call) => Completer<Object?>().future,
+          );
+      DictationProblem? problem;
+      unawaited(dictation.prepare().then((p) => problem = p));
+      async.elapse(const Duration(seconds: 6));
+      expect(problem, DictationProblem.noOfflineGerman);
+      expect(recognizer.listened, isEmpty);
+    });
   });
 
   for (final error in [

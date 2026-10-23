@@ -11,7 +11,8 @@ supabase_up() {
   env="$(cd "$REPO_ROOT" && supabase status -o env 2>/dev/null)"
   SUPABASE_URL="$(sed -n 's/^API_URL="\(.*\)"$/\1/p' <<<"$env")"
   SUPABASE_PUBLISHABLE_KEY="$(sed -n 's/^PUBLISHABLE_KEY="\(.*\)"$/\1/p' <<<"$env")"
-  export SUPABASE_URL SUPABASE_PUBLISHABLE_KEY
+  MAILPIT_URL="$(sed -n 's/^MAILPIT_URL="\(.*\)"$/\1/p' <<<"$env")"
+  export SUPABASE_URL SUPABASE_PUBLISHABLE_KEY MAILPIT_URL
 }
 
 flutter_defines() {

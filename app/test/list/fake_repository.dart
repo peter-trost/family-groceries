@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:family_groceries/list/entry.dart';
 import 'package:family_groceries/list/list_repository.dart';
 import 'package:family_groceries/list/model.dart';
 
@@ -178,6 +179,16 @@ class FakeRepository() implements ListRepository {
     );
     rows[op.itemId] = stamped;
     return stamped;
+  }
+
+  /// Stands in for the server's splitter: splits on commas and "und".
+  @override
+  Future<List<Entry>> splitSpoken(String text) async {
+    _ensureOnline();
+    return [
+      for (final part in text.split(RegExp(r',|\bund\b')))
+        if (part.trim().isNotEmpty) parseEntry(part),
+    ];
   }
 
   @override

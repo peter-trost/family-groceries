@@ -166,6 +166,60 @@ abstract class AppLocalizations {
   /// **'{name} steht schon auf der Liste'**
   String alreadyOnList(String name);
 
+  /// No description provided for @dictationStart.
+  ///
+  /// In de, this message translates to:
+  /// **'Diktieren'**
+  String get dictationStart;
+
+  /// No description provided for @dictationStop.
+  ///
+  /// In de, this message translates to:
+  /// **'Diktat beenden'**
+  String get dictationStop;
+
+  /// No description provided for @dictationListening.
+  ///
+  /// In de, this message translates to:
+  /// **'Ich höre zu …'**
+  String get dictationListening;
+
+  /// No description provided for @dictationUnavailable.
+  ///
+  /// In de, this message translates to:
+  /// **'Spracheingabe ist nicht verfügbar. Erlaube Mikrofon und Spracherkennung in den Einstellungen.'**
+  String get dictationUnavailable;
+
+  /// No description provided for @dictationNothingHeard.
+  ///
+  /// In de, this message translates to:
+  /// **'Ich habe nichts gehört.'**
+  String get dictationNothingHeard;
+
+  /// No description provided for @dictationNothingUnderstood.
+  ///
+  /// In de, this message translates to:
+  /// **'Ich habe nichts verstanden, was auf die Liste soll.'**
+  String get dictationNothingUnderstood;
+
+  /// No description provided for @dictationSplitFailed.
+  ///
+  /// In de, this message translates to:
+  /// **'Keine Verbindung. Der Text steht im Feld; prüfe ihn und tippe auf Hinzufügen.'**
+  String get dictationSplitFailed;
+
+  /// No description provided for @dictationAdded.
+  ///
+  /// In de, this message translates to:
+  /// **'Hinzugefügt: {items}.'**
+  String dictationAdded(String items);
+
+  /// No description provided for @dictationAlreadyOnList.
+  ///
+  /// In de, this message translates to:
+  /// **'Schon auf der Liste: {items}.'**
+  String dictationAlreadyOnList(String items);
+
   /// No description provided for @undo.
   ///
   /// In de, this message translates to:

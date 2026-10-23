@@ -1,0 +1,11 @@
+# Signing material lives encrypted in a private git repo. CI clones it with a
+# deploy key (MATCH_DEPLOY_KEY) and decrypts it with MATCH_PASSWORD. The repo
+# URL comes from MATCH_GIT_URL, which match reads by itself.
+storage_mode("git")
+git_branch("main")
+
+type("appstore")
+app_identifier(["com.petertrost.familygroceries"])
+
+# Read-only so a CI run never mints certificates; `ios certificates` overrides it.
+readonly(true)

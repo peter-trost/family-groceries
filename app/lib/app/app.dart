@@ -1,3 +1,4 @@
+import 'package:family_groceries/app/device_cache.dart';
 import 'package:family_groceries/app/router.dart';
 import 'package:family_groceries/l10n/app_localizations.dart';
 import 'package:family_groceries/session/session_cubit.dart';
@@ -9,6 +10,7 @@ import 'package:go_router/go_router.dart';
 class const App({
   required final SessionCubit session,
   required final SocialSignIn social,
+  required final DeviceCache cache,
   super.key,
 }) extends StatefulWidget {
   @override
@@ -27,8 +29,11 @@ class _AppState() extends State<App> {
   @override
   Widget build(BuildContext context) {
     const seed = Color(0xFF2E7D32);
-    return RepositoryProvider.value(
-      value: widget.social,
+    return MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider.value(value: widget.social),
+        RepositoryProvider.value(value: widget.cache),
+      ],
       child: BlocProvider.value(
         value: widget.session,
         child: MaterialApp.router(

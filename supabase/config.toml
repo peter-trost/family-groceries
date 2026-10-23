@@ -438,3 +438,7 @@ verify_jwt = false
 
 [functions.mcp]
 verify_jwt = false
+
+[functions.voice]
+# Siri and the app send personal access tokens or session JWTs; the function checks them itself.
+verify_jwt = false

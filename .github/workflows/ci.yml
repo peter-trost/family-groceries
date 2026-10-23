@@ -140,8 +140,22 @@ jobs:
             e2e/screenshots
           retention-days: 14
 
+  # Job 4 (release): the Gemfile.lock installs and the Fastfile parses.
+  fastlane:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
+        with:
+          working-directory: app
+          bundler-cache: true
+      - run: bundle exec fastlane lanes
+
   ci-ok:
-    needs: [gitleaks, app, functions, database, e2e]
+    needs: [gitleaks, app, functions, database, e2e, fastlane]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:

@@ -33,3 +33,17 @@ coverage/
 .idea/
 .vscode/
 .DS_Store
+
+# Release tooling (job 4): local gems, fastlane output, signing material
+app/.bundle/
+app/vendor/
+app/fastlane/report.xml
+app/fastlane/README.md
+app/fastlane/Preview.html
+app/fastlane/screenshots/
+app/fastlane/test_output/
+*.ipa
+*.dSYM.zip
+*.cer
+*.certSigningRequest
+play-service-account*.json

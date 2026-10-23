@@ -9,6 +9,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_repository.dart';
+import 'memory_cache.dart';
 
 void main() {
   late FakeRepository repo;
@@ -25,7 +26,7 @@ void main() {
         supportedLocales: AppLocalizations.supportedLocales,
         locale: const Locale('de'),
         home: BlocProvider(
-          create: (_) => ListCubit(repo)..start(),
+          create: (_) => ListCubit(repo, MemoryListCache())..start(),
           child: const ShoppingList(
             household: Household(id: 'h', name: 'Trost'),
           ),

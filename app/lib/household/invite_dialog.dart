@@ -19,36 +19,56 @@ Future<void> showInviteDialog(BuildContext context, Household household) =>
 
 /// Asks for a code, then hands over to the join route which confirms.
 Future<void> showJoinCodeDialog(BuildContext context) async {
-  final l10n = AppLocalizations.of(context);
   final router = GoRouter.of(context);
-  final controller = TextEditingController();
   final code = await showDialog<String>(
     context: context,
-    builder: (dialog) => AlertDialog(
-      title: Text(l10n.joinOtherHousehold),
-      content: TextField(
-        controller: controller,
-        autofocus: true,
-        textCapitalization: TextCapitalization.characters,
-        decoration: InputDecoration(labelText: l10n.inviteCode),
-        onSubmitted: (value) => Navigator.of(dialog).pop(value),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(dialog).pop(),
-          child: Text(l10n.cancel),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(dialog).pop(controller.text),
-          child: Text(l10n.joinHousehold),
-        ),
-      ],
-    ),
+    builder: (_) => const _JoinCodeDialog(),
   );
-  controller.dispose();
   final cleaned = code?.toUpperCase().replaceAll(RegExp('[^A-Z0-9]'), '');
   if (cleaned != null && cleaned.isNotEmpty) {
     router.go(joinPath(cleaned));
+  }
+}
+
+/// Owns its controller, so the field can still build during the dialog's
+/// exit animation.
+class const _JoinCodeDialog() extends StatefulWidget {
+  @override
+  State<_JoinCodeDialog> createState() => _JoinCodeDialogState();
+}
+
+class _JoinCodeDialogState() extends State<_JoinCodeDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return AlertDialog(
+      title: Text(l10n.joinOtherHousehold),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textCapitalization: TextCapitalization.characters,
+        decoration: InputDecoration(labelText: l10n.inviteCode),
+        onSubmitted: (value) => Navigator.of(context).pop(value),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.cancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text),
+          child: Text(l10n.joinHousehold),
+        ),
+      ],
+    );
   }
 }
 
@@ -70,7 +90,7 @@ class _InviteDialogState() extends State<_InviteDialog> {
   }
 
   String? _link(String code) {
-    final base = kIsWeb ? Uri.base.origin : Environment.appUrl;
+    final base = kIsWeb ? webRoot : Environment.appUrl;
     return base.isEmpty ? null : '$base${joinPath(code)}';
   }
 

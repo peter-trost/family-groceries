@@ -18,6 +18,13 @@ class const Category({
     sortOrder: json['sort_order']! as int,
     seedKey: json['seed_key'] as String?,
   );
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'name': name,
+    'sort_order': sortOrder,
+    'seed_key': seedKey,
+  };
 }
 
 @immutable
@@ -33,6 +40,13 @@ class const Store({
     sortOrder: json['sort_order']! as int,
     seedKey: json['seed_key'] as String?,
   );
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'name': name,
+    'sort_order': sortOrder,
+    'seed_key': seedKey,
+  };
 }
 
 /// Where a category sits in one store's walking order, and whether the store
@@ -50,6 +64,13 @@ class const StoreCategory({
     sortOrder: json['sort_order']! as int,
     hidden: json['hidden']! as bool,
   );
+
+  Map<String, Object?> toJson() => {
+    'store_id': storeId,
+    'category_id': categoryId,
+    'sort_order': sortOrder,
+    'hidden': hidden,
+  };
 }
 
 /// The household's categories, stores and store layouts: everything the list
@@ -60,6 +81,27 @@ class const Catalog({
   final List<Store> stores = const [],
   final List<StoreCategory> layout = const [],
 }) {
+  factory fromJson(Map<String, Object?> json) => Catalog(
+    categories: [
+      for (final row in json['categories']! as List<Object?>)
+        Category.fromJson(row! as Map<String, Object?>),
+    ],
+    stores: [
+      for (final row in json['stores']! as List<Object?>)
+        Store.fromJson(row! as Map<String, Object?>),
+    ],
+    layout: [
+      for (final row in json['layout']! as List<Object?>)
+        StoreCategory.fromJson(row! as Map<String, Object?>),
+    ],
+  );
+
+  Map<String, Object?> toJson() => {
+    'categories': [for (final c in categories) c.toJson()],
+    'stores': [for (final s in stores) s.toJson()],
+    'layout': [for (final row in layout) row.toJson()],
+  };
+
   Category? get fallback =>
       categories.where((c) => c.seedKey == 'other').firstOrNull;
 
@@ -186,6 +228,19 @@ class const Item({
     },
   );
 
+  /// The same keys as a server row, so [Item.fromJson] reads it back.
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'name': name,
+    'quantity': quantity,
+    'category_id': categoryId,
+    'store_id': storeId,
+    'status': status.name,
+    'created_at': createdAt.toIso8601String(),
+    'updated_at': updatedAt.toIso8601String(),
+    'bought_at': boughtAt?.toIso8601String(),
+  };
+
   Item copyWith({
     String? name,
     String? Function()? quantity,
@@ -209,8 +264,60 @@ class const Item({
 /// A user's intent, applied optimistically on top of the server state until
 /// the server acknowledges it. Every op is idempotent so it can be retried.
 sealed class const ItemOp(final String itemId) {
+  /// Reads what [toJson] wrote; throws on anything else.
+  factory fromJson(Map<String, Object?> json) {
+    final id = json['item_id']! as String;
+    return switch (json['op']) {
+      'add' => AddItem(Item.fromJson(json['item']! as Map<String, Object?>)),
+      'status' => SetStatus(
+        id,
+        ItemStatus.values.byName(json['status']! as String),
+        DateTime.parse(json['at']! as String),
+        storeId: json['store_id'] as String?,
+      ),
+      'edit' => EditItem(
+        id,
+        name: json['name']! as String,
+        quantity: json['quantity'] as String?,
+        categoryId: json['category_id']! as String,
+        storeId: json['store_id'] as String?,
+      ),
+      'move' => MoveItem(id, json['category_id']! as String),
+      'delete' => DeleteItem(id),
+      final op => throw FormatException('unknown op', op),
+    };
+  }
+
   /// The item as the user should see it once this op lands.
   Item? apply(Item? current);
+
+  Map<String, Object?> toJson() => {
+    'item_id': itemId,
+    ...switch (this) {
+      AddItem(:final item) => {'op': 'add', 'item': item.toJson()},
+      SetStatus(:final status, :final at, :final storeId) => {
+        'op': 'status',
+        'status': status.name,
+        'at': at.toIso8601String(),
+        'store_id': storeId,
+      },
+      EditItem(
+        :final name,
+        :final quantity,
+        :final categoryId,
+        :final storeId,
+      ) =>
+        {
+          'op': 'edit',
+          'name': name,
+          'quantity': quantity,
+          'category_id': categoryId,
+          'store_id': storeId,
+        },
+      MoveItem(:final categoryId) => {'op': 'move', 'category_id': categoryId},
+      DeleteItem() => {'op': 'delete'},
+    },
+  };
 }
 
 final class AddItem(final Item item) extends ItemOp {

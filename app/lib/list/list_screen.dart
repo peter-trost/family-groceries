@@ -1,15 +1,18 @@
 import 'dart:async';
 
+import 'package:family_groceries/app/device_cache.dart';
 import 'package:family_groceries/app/router.dart';
 import 'package:family_groceries/household/invite_dialog.dart';
 import 'package:family_groceries/l10n/app_localizations.dart';
 import 'package:family_groceries/list/categories_screen.dart';
+import 'package:family_groceries/list/dictation.dart';
 import 'package:family_groceries/list/edit_item_sheet.dart';
 import 'package:family_groceries/list/list_cubit.dart';
 import 'package:family_groceries/list/list_repository.dart';
 import 'package:family_groceries/list/model.dart';
 import 'package:family_groceries/list/store_layout_screen.dart';
 import 'package:family_groceries/session/session_cubit.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -23,6 +26,9 @@ class const ListScreen({
   /// Overrides the Supabase repository, for tests.
   final ListRepository? repository,
 }) extends StatelessWidget {
+  /// The web build has no on-device recognizer; typing is the fallback.
+  static final Dictation? _dictation = kIsWeb ? null : DeviceDictation();
+
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionCubit>().state;
@@ -32,17 +38,23 @@ class const ListScreen({
     final household = session.household;
     return BlocProvider(
       key: ValueKey(household.id),
-      create: (_) => ListCubit(
+      create: (context) => ListCubit(
         repository ??
             SupabaseListRepository(Supabase.instance.client, household.id),
+        context.read<DeviceCache>().list(session.userId, household.id),
       )..start(),
-      child: ShoppingList(household: household),
+      child: ShoppingList(household: household, dictation: _dictation),
     );
   }
 }
 
-class const ShoppingList({required final Household household, super.key})
-    extends StatefulWidget {
+class const ShoppingList({
+  required final Household household,
+
+  /// Null hides the microphone button.
+  final Dictation? dictation,
+  super.key,
+}) extends StatefulWidget {
   @override
   State<ShoppingList> createState() => _ShoppingListState();
 }
@@ -52,6 +64,7 @@ class _ShoppingListState() extends State<ShoppingList> {
   final _inputFocus = FocusNode();
   late final AppLifecycleListener _lifecycle;
   late final StreamSubscription<Rejected> _rejections;
+  var _listening = false;
 
   @override
   void initState() {
@@ -109,6 +122,71 @@ class _ShoppingListState() extends State<ShoppingList> {
         break;
     }
     _inputFocus.requestFocus();
+  }
+
+  /// Fills the field while the user speaks, then adds what the server's
+  /// splitter makes of the sentence. On failure the text stays in the field.
+  Future<void> _dictate(Dictation dictation) async {
+    if (_listening) {
+      await dictation.stop();
+      return;
+    }
+    final l10n = AppLocalizations.of(context);
+    final cubit = context.read<ListCubit>();
+    if (!await dictation.prepare()) {
+      if (mounted) {
+        _snack(l10n.dictationUnavailable);
+      }
+      return;
+    }
+    setState(() => _listening = true);
+    final text = await dictation.listen(
+      onWords: (words) => _input.text = words,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() => _listening = false);
+    if (text == null) {
+      _snack(l10n.dictationNothingHeard);
+      return;
+    }
+    try {
+      final results = await cubit.addSpoken(text);
+      if (!mounted) {
+        return;
+      }
+      if (results.isEmpty) {
+        _snack(l10n.dictationNothingUnderstood);
+      } else {
+        _input.clear();
+        _snack(_dictationSummary(l10n, results));
+      }
+    } on Exception {
+      if (mounted) {
+        _snack(l10n.dictationSplitFailed);
+      }
+    }
+    _inputFocus.requestFocus();
+  }
+
+  static String _dictationSummary(
+    AppLocalizations l10n,
+    List<AddResult> results,
+  ) {
+    final added = [
+      for (final result in results)
+        if (result case Added(:final item))
+          [?item.quantity, item.name].join(' '),
+    ];
+    final existing = [
+      for (final result in results)
+        if (result case AlreadyOnList(:final item)) item.name,
+    ];
+    return [
+      if (added.isNotEmpty) l10n.dictationAdded(added.join(', ')),
+      if (existing.isNotEmpty) l10n.dictationAlreadyOnList(existing.join(', ')),
+    ].join(' ');
   }
 
   /// Acting on the list ends typing, which also drops the soft keyboard
@@ -209,12 +287,33 @@ class _ShoppingListState() extends State<ShoppingList> {
                 textInputAction: TextInputAction.send,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
-                  hintText: l10n.addFieldHint,
+                  hintText: _listening
+                      ? l10n.dictationListening
+                      : l10n.addFieldHint,
                   prefixIcon: const Icon(Icons.add_shopping_cart),
-                  suffixIcon: IconButton(
-                    tooltip: l10n.addButton,
-                    icon: const Icon(Icons.send),
-                    onPressed: _submit,
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (widget.dictation case final dictation?)
+                        IconButton(
+                          key: const ValueKey('dictation-button'),
+                          tooltip: _listening
+                              ? l10n.dictationStop
+                              : l10n.dictationStart,
+                          icon: Icon(
+                            _listening ? Icons.stop_circle : Icons.mic,
+                          ),
+                          color: _listening
+                              ? Theme.of(context).colorScheme.error
+                              : null,
+                          onPressed: () => unawaited(_dictate(dictation)),
+                        ),
+                      IconButton(
+                        tooltip: l10n.addButton,
+                        icon: const Icon(Icons.send),
+                        onPressed: _submit,
+                      ),
+                    ],
                   ),
                   border: const OutlineInputBorder(),
                   counterText: '',

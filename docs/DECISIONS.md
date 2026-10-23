@@ -607,3 +607,62 @@ Numbered 3.x so parallel jobs don't collide. Details and sources: `docs/MCP.md`.
       "tenant terminated: rebalancing"). `watch()` now reports that event as
       online, which resyncs. `realtime_client` already turns a `system`
       error into `channelError`, which shows Offline.
+
+## Job 4b (voice follow-ups), 2026-10-23
+
+4b.1. **DeviceCache writes its own file on Linux** (`device_cache.json`, via
+      `SharedPreferencesLinuxOptions`). supabase_flutter keeps the session
+      through the legacy `SharedPreferences`, the cache uses
+      `SharedPreferencesAsync`, and on Linux both plugins hold their own
+      in-memory copy of `shared_preferences.json` and rewrite the whole file
+      on each write, so a cache write dropped the session (relaunch came back
+      signed out). Android, iOS and web ignore Linux options, so their stores
+      and keys are unchanged. Not migrated: Linux is a debug target, and the
+      household/list keys left in the old file are a cache that refills on
+      the next online start.
+4b.2. **Dictation is on-device only** (spec), superseding the job 4 note
+      "on-device recognition is not forced". `speech_to_text` 7.5 with
+      `onDevice: true` is strict on iOS (`requiresOnDeviceRecognition`) but on
+      Android silently uses the network recognizer when on-device
+      recognition is unavailable, and on iOS it answers a device without
+      on-device German twice. So the app asks first, over its own channel
+      `familygroceries/speech` (`MainActivity.kt`, `AppDelegate.swift`): iOS
+      `SFSpeechRecognizer(de_DE).supportsOnDeviceRecognition`; Android API 31+
+      `isOnDeviceRecognitionAvailable` and, on 33+, German among the installed
+      on-device languages. Without it the mic explains in German that the
+      offline German recognizer is missing and listens to nothing. An Android
+      12 device without German reports `error_language_*` once listening
+      starts; that gets the same message. Not 7.6.0-beta.4's
+      `hasOnDeviceSupport`: a beta, and its Android answer ignores the
+      language.
+4b.3. **The mic shows on iOS and Android only.** Linux and web have no
+      on-device recognizer; the Linux build used to show a button that could
+      only fail.
+4b.4. **CI compiles the native code** (`android-build`: debug APK on
+      Ubuntu; `ios-build`: simulator debug build on macOS, free for public
+      repositories). The app now has its own Kotlin and Swift, and nothing
+      compiled them before.
+4b.5. **Offline start: cache first, and list reads fail fast.** Review 1's
+      offline-start failure was the cached list missing 10 s after an offline
+      reload. Measured: the list appeared 7.6 s after the reload and
+      "Offline:" 7.3 s later. postgrest-dart 2.9 retries every GET three
+      times on network errors (1, 2 and 4 s), and `SupabaseClient.from()`
+      ignores `postgrestOptions.retryEnabled` (supabase 2.16.5), so the
+      session's household lookup and the list fetches each took about 7 s to
+      fail. Now SessionCubit opens the device's household before it asks the
+      server, and the list reads and the household lookup use
+      `.retry(enabled: false)`: ListCubit and SessionCubit retry on their own
+      every 3 s. After: list 0.5 s, banner 0.6 s after an offline reload.
+4b.6. **Review 1's three e2e failures had one trigger.** The run (09:27 to
+      09:37) was frozen by mem-guard from 09:30:38 to 09:35:04 (SIGSTOP,
+      `mem-guard.log`), and with 3 workers exactly three tests were in
+      flight; each failed after 4.6 to 4.8 minutes on wall-clock timeouts.
+      Fixes for what made them fragile: 4b.5 for offline-start, 3b.3 (own
+      fake OIDC port) for social-sign-in, and one worker locally (3b.4).
+4b.7. **merge-pr.sh ends the squashed message with Peter's trailer**
+      (COMMON.md: every commit message ends with it) and re-squashes a head
+      that doesn't. Before, the Claude trailer came last.
+4b.8. **The ops DONE_SUMMARY.md is a copy of `docs/done/<job>.md`**
+      (COORDINATION.md), byte for byte; the root `DONE_SUMMARY.md` only links
+      it. Job 4's repo copy gained the "Merged as PR #10" line its ops copy
+      already had.

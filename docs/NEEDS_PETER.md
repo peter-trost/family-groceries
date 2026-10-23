@@ -308,6 +308,22 @@ The Shortcut itself needs no Apple account setting, but creating the token
 needs a running app on the hosted project: the TestFlight or Play build
 (job 4 release section below) or the web app once it is hosted (section 3).
 
+## Job 4b: the microphone on a real phone
+
+This box has no iOS device and no Android emulator (KVM is locked), so the
+on-device check ran only in unit and widget tests and through the iOS and
+Android compile jobs in CI. On the first build on your phone:
+
+1. Tap the microphone next to "Was fehlt?", allow microphone and speech
+   recognition, and say "Milch, zwei Gurken und Klopapier". Expect the
+   words in the field, then "Hinzugefügt: Milch, 2 Gurken, Klopapier."
+2. If instead you see "Diktieren geht nur offline … fehlt hier die deutsche
+   Offline-Spracherkennung …", the phone has no offline German model.
+   iPhone: Einstellungen › Allgemein › Tastatur › Diktieren on, with German
+   among the keyboards (iOS downloads the model). Android: Einstellungen ›
+   System › Sprachen › Spracheingabe (Google) › Offline-Spracherkennung ›
+   Deutsch. Then try again.
+
 ## Job 4: release
 
 The Release workflow and the fastlane lanes are in place

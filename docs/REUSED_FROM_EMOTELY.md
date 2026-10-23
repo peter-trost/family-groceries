@@ -49,3 +49,16 @@ Reference commit: `119f780` (default branch head on 2026-10-22).
 - `apps/mobile/app/fastlane/` (`Appfile`, `Fastfile`, `Matchfile`,
   `ExportOptions.plist`, `metadata/`), `apps/mobile/app/Gemfile` and the
   `fastlane` Ruby test job in `ci.yml`.
+
+## Reused in job 4
+
+| Piece | emotely path | Here | Changes |
+| --- | --- | --- | --- |
+| Release workflow | `.github/workflows/app-release.yml` | `.github/workflows/release.yml` | Manual only (`platform` input) instead of on every push; a `secrets` job skips a platform with a notice when its secrets are missing. Same SHA-pinned checkout, flutter-action, setup-ruby, ssh-agent and setup-java, same `release` environment, same `1000 + run number`. No beta promotion, listing, status-badge or Play lock jobs. |
+| Secret names | `app-release.yml` | `release.yml` | Same names. Added `APPLE_TEAM_ID` and `MATCH_GIT_URL` (emotely hardcodes both) and the optional `PLAY_RELEASE_STATUS`. |
+| Fastfile | `apps/mobile/app/fastlane/Fastfile` | `app/fastlane/Fastfile` | Kept `asc_api_key`, `certificates`, the match + `update_code_signing_settings` + `flutter build ipa` build, and the `flutter` helper with absolute paths. `ios internal` is `ios beta` here. Dropped beta promotion, metadata, data safety, survey signing, TestFlight test info and analytics defines. |
+| Appfile, Matchfile | `apps/mobile/app/fastlane/{Appfile,Matchfile}` | `app/fastlane/{Appfile,Matchfile}` | Own bundle ID; team ID and repo URL from the environment. Same git storage, `appstore` type and read-only default. |
+| ExportOptions.plist | `apps/mobile/app/fastlane/ExportOptions.plist` | written by `ios beta` to `app/build/ios/ExportOptions.plist` | Same keys; generated so the team ID comes from `APPLE_TEAM_ID` instead of a committed value. |
+| Gemfile | `apps/mobile/app/Gemfile` | `app/Gemfile`, `app/Gemfile.lock`, `app/.ruby-version` | fastlane 2.241.1 (emotely 2.240.1), same CocoaPods 1.17.0. No minitest: no Ruby helpers to test. Ruby 3.3 (the version on the build box) instead of 3.4.4. |
+| Android release signing | `apps/mobile/app/android/app/build.gradle.kts` | `app/android/app/build.gradle.kts` | Same `key.properties` lookup with debug fallback and the same keystore location in CI. |
+| fastlane CI job | `ci.yml` `fastlane` (runs Fastfile helper tests) | `ci.yml` `fastlane` | Runs `bundle exec fastlane lanes` instead, on every PR (no path filter); in `ci-ok`'s needs. |

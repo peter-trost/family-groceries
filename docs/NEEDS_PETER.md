@@ -47,6 +47,8 @@ The web app has no public URL yet. GitHub Pages on this public repo is free;
 say the word and a later job adds the Pages workflow (needs the SPA
 fallback: a copy of `index.html` as `404.html`).
 
+Update (job 4): the Pages workflow exists; see "Job 4: web hosting" below.
+
 ## 4. Sign in with Google and Apple (job 1b)
 
 The app, the Supabase config and a configuration script are ready. Both
@@ -191,3 +193,177 @@ Still needed:
 3. **Optional:** if a browser-based MCP client on another site should connect,
    set the edge function secret `MCP_ALLOWED_ORIGIN_HOSTS` to its hostname(s),
    comma-separated (`supabase secrets set MCP_ALLOWED_ORIGIN_HOSTS=…`).
+
+## Job 4: web hosting
+
+`.github/workflows/web-deploy.yml` builds the web app against the production
+project and publishes it to GitHub Pages (free for public repos), at
+`https://peter-trost.github.io/family-groceries/`. It runs only by hand and
+skips with a notice until Pages is on. The build sets the base path, so
+sign-in links, invite links and deep links (`/join/CODE`,
+`/oauth/consent`) work under `/family-groceries`.
+
+1. Repo Settings, Pages, Build and deployment, Source: **GitHub Actions**.
+2. Actions tab, **Web deploy**, Run workflow. The run prints the URL.
+3. Supabase Dashboard, Authentication, URL Configuration:
+   - Site URL: `https://peter-trost.github.io/family-groceries`
+   - Redirect URLs: add `https://peter-trost.github.io/family-groceries/**`
+4. For MCP OAuth, keep the authorization path at `/oauth/consent`
+   (Authentication, OAuth Server). Supabase appends it to the Site URL, and
+   this Site URL already ends in `/family-groceries`, so the consent page is
+   `https://peter-trost.github.io/family-groceries/oauth/consent`. Section 5,
+   step 2's sub-path variant is for a Site URL without the path; use one or
+   the other, not both.
+
+Run the workflow again after each release you want on the web; it does not
+deploy on every merge.
+
+## Job 4: Siri
+
+1. Deploy the edge functions (section 1). The `voice` function is part of
+   `supabase functions deploy`; `supabase/config.toml` already sets
+   `verify_jwt = false` for it, because Siri sends a personal access token,
+   not a JWT. Check it with:
+
+   ```bash
+   curl -s -X POST 'https://jdwqrallbpdbshrdhenk.supabase.co/functions/v1/voice?format=text' \
+     -H 'Authorization: Bearer nope' -d 'Milch'
+   # -> Der Zugriffstoken fehlt oder ist ungültig. …
+   ```
+
+2. On your iPhone, follow `docs/SIRI_SHORTCUT.md` (German): create a token
+   in the app under Menü, Zugänge, then build the three-action Shortcut
+   "Einkaufsliste". Lea does the same on her phone with her own token.
+
+The Shortcut itself needs no Apple account setting, but creating the token
+needs a running app on the hosted project: the TestFlight or Play build
+(job 4 release section below) or the web app once it is hosted (section 3).
+
+## Job 4: release
+
+The Release workflow and the fastlane lanes are in place
+([`RELEASE.md`](RELEASE.md)). Until the secrets below exist, the workflow
+skips both platforms and stays green. All secrets and variables go into one
+GitHub environment.
+
+### Create the `release` environment
+
+Repo Settings, Environments, New environment, name `release`. Optionally
+limit deployment branches to `main`. The `gh` commands below write into it;
+run them from a clone of the repo.
+
+### iOS
+
+1. **Register the bundle ID.** developer.apple.com, Certificates, Identifiers
+   & Profiles, Identifiers, add an App ID: `com.petertrost.familygroceries`,
+   description "Einkauf". No extra capabilities are needed.
+2. **Create the app record.** App Store Connect, Apps, New App: platform iOS,
+   name "Einkauf" (the name must be unique on the App Store; pick a variant
+   such as "Einkauf Familie" if it is taken, the home-screen name stays
+   "Einkauf"), primary language German, bundle ID
+   `com.petertrost.familygroceries`, SKU `family-groceries`.
+3. **Team ID.** developer.apple.com, Account, Membership details, Team ID:
+
+   ```bash
+   gh variable set APPLE_TEAM_ID --env release --body <TEAM_ID>
+   ```
+
+4. **App Store Connect API key.** App Store Connect, Users and Access,
+   Integrations, App Store Connect API, Team Keys, generate a key with the
+   Admin role (match needs it to create the certificate). Download
+   `AuthKey_<KEY_ID>.p8`; Apple offers the download once.
+
+   ```bash
+   gh secret set APP_STORE_CONNECT_API_KEY_ID --env release --body <KEY_ID>
+   gh secret set APP_STORE_CONNECT_ISSUER_ID --env release --body <ISSUER_ID>
+   gh secret set APP_STORE_CONNECT_API_KEY_P8 --env release < AuthKey_<KEY_ID>.p8
+   ```
+
+5. **match repo and deploy key.** Create an empty private repo, for example
+   `peter-trost/family-groceries-certificates`. Then:
+
+   ```bash
+   ssh-keygen -t ed25519 -N "" -C family-groceries-match -f match_deploy_key
+   gh repo deploy-key add match_deploy_key.pub --allow-write \
+     --repo peter-trost/family-groceries-certificates --title release-ci
+   gh secret set MATCH_DEPLOY_KEY --env release < match_deploy_key
+   gh variable set MATCH_GIT_URL --env release \
+     --body git@github.com:peter-trost/family-groceries-certificates.git
+   openssl rand -base64 32   # keep this in your password manager
+   gh secret set MATCH_PASSWORD --env release --body '<that passphrase>'
+   rm match_deploy_key match_deploy_key.pub
+   ```
+
+   Write access lets the next step push the certificates with the same key;
+   CI only reads.
+6. **Create the certificate and profile once**, on a Mac with Xcode and Ruby
+   (the version in `app/.ruby-version`), with SSH access to the match repo:
+
+   ```bash
+   cd app
+   bundle install
+   export APPLE_TEAM_ID=<TEAM_ID> \
+     MATCH_GIT_URL=git@github.com:peter-trost/family-groceries-certificates.git \
+     MATCH_PASSWORD='<passphrase>' \
+     APP_STORE_CONNECT_API_KEY_ID=<KEY_ID> \
+     APP_STORE_CONNECT_ISSUER_ID=<ISSUER_ID> \
+     APP_STORE_CONNECT_API_KEY_P8="$(cat AuthKey_<KEY_ID>.p8)"
+   bundle exec fastlane ios certificates
+   ```
+
+   Apple allows only a few distribution certificates per team. If the lane
+   reports the limit, revoke an unused one in the developer portal and rerun.
+7. Run the Release workflow with `platform: ios`. The build shows up in
+   TestFlight after Apple's processing (10 to 30 minutes). Add yourself and
+   Lea as internal testers in App Store Connect, TestFlight.
+
+### Android
+
+1. **Create the app.** Play Console, Create app: name "Einkauf", default
+   language German, app, free. Accept the declarations.
+2. **Create the upload keystore** and keep it with its passwords in your
+   password manager:
+
+   ```bash
+   keytool -genkeypair -v -keystore upload-keystore.jks -storetype PKCS12 \
+     -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+   ```
+
+3. **Store it as secrets.** `key.properties` uses the passwords you chose:
+
+   ```bash
+   base64 -w0 upload-keystore.jks | gh secret set ANDROID_KEYSTORE_BASE64 --env release
+   # macOS: base64 -i upload-keystore.jks | gh secret set ANDROID_KEYSTORE_BASE64 --env release
+   printf 'storeFile=../upload-keystore.jks\nstorePassword=%s\nkeyAlias=upload\nkeyPassword=%s\n' \
+     '<store password>' '<key password>' | gh secret set ANDROID_KEY_PROPERTIES --env release
+   ```
+
+4. **Upload the first AAB by hand.** The Play API cannot upload to an app
+   that has no release yet. Build one signed with the upload key: copy
+   `upload-keystore.jks` to `app/android/` and write the same `key.properties`
+   to `app/android/key.properties` (both are git-ignored), then
+
+   ```bash
+   cd app && flutter build appbundle --release --build-number=1000
+   ```
+
+   In Play Console, Testing, Internal testing, create a release, accept Play
+   App Signing, upload `build/app/outputs/bundle/release/app-release.aab`,
+   add yourself and Lea as testers and roll it out. Delete the two files from
+   `app/android/` afterwards.
+5. **Service account.** In Google Cloud console, pick or create a project,
+   enable the "Google Play Android Developer API", create a service account
+   (no project roles needed) and add a JSON key. In Play Console, Users and
+   permissions, invite the service account's email, give it access to the
+   Einkauf app with "Release to testing tracks" (and "View app information"),
+   and save.
+
+   ```bash
+   gh secret set PLAY_SERVICE_ACCOUNT_JSON --env release < service-account.json
+   rm service-account.json
+   ```
+
+6. Run the Release workflow with `platform: android`. If Play rejects the
+   upload with "Only releases with status draft may be created on draft
+   app", set `gh variable set PLAY_RELEASE_STATUS --env release --body draft`
+   and roll the draft out by hand in Play Console until the app leaves draft.

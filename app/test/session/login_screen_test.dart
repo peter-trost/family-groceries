@@ -26,7 +26,7 @@ void main() {
     auth = FakeAuth();
     addTearDown(auth.close);
     native = FakeNativeSignIn();
-    final session = SessionCubit(FakeClient(auth));
+    final session = SessionCubit(FakeClient(auth), MemorySessionCache());
     addTearDown(session.close);
     auth.states.add(const AuthState(AuthChangeEvent.initialSession, null));
     if (returnError != null) {

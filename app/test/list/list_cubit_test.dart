@@ -6,10 +6,12 @@ import 'package:family_groceries/list/model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_repository.dart';
+import 'memory_cache.dart';
 
 void main() {
   late FakeRepository repo;
   late ListCubit cubit;
+  late MemoryListCache cache;
 
   Future<void> settle() => pumpEventQueue();
   List<String> activeNames() => [
@@ -19,7 +21,8 @@ void main() {
 
   setUp(() async {
     repo = FakeRepository();
-    cubit = ListCubit(repo)..start();
+    cache = MemoryListCache();
+    cubit = ListCubit(repo, cache)..start();
     await settle();
   });
 
@@ -254,4 +257,60 @@ void main() {
       expect(cubit.state.filter, isA<AllStores>());
     },
   );
+
+  group('across restarts', () {
+    // Longer than the cubit's save debounce.
+    Future<void> saved() => Future.delayed(const Duration(milliseconds: 400));
+
+    Future<void> restart() async {
+      await cubit.close();
+      cubit = ListCubit(repo, cache)..start();
+      await settle();
+    }
+
+    test('an offline start shows the cached list and its queued ops', () async {
+      final bread = (cubit.add('Brot') as Added).item.id;
+      await settle();
+      repo.online = false;
+      cubit
+        ..tick(bread)
+        ..add('Käse');
+      await saved();
+
+      await restart();
+      expect(cubit.state.loaded, isTrue);
+      expect(cubit.state.connection, ConnectionStatus.offline);
+      expect(cubit.state.server.keys, [bread]);
+      expect(cubit.state.pending, hasLength(2));
+      expect(activeNames(), ['Käse']);
+    });
+
+    test('ops queued during an offline start survive the next restart, '
+        'then flush on reconnect', () async {
+      final bread = (cubit.add('Brot') as Added).item.id;
+      await settle();
+      repo.online = false;
+      await saved();
+
+      await restart();
+      cubit
+        ..tick(bread)
+        ..add('Eier');
+      // No wait for the debounce: the app may be killed right after a tap.
+      await settle();
+      await restart();
+      expect(cubit.state.pending, hasLength(2));
+      expect(activeNames(), ['Eier']);
+
+      repo.online = true;
+      repo.emitStatus!(ConnectionStatus.online);
+      await settle();
+      expect(cubit.state.pending, isEmpty);
+      expect(repo.rows[bread]!.status, ItemStatus.bought);
+      expect([for (final i in repo.rows.values) i.name], ['Brot', 'Eier']);
+
+      await saved();
+      expect(cache.saved!.pending, isEmpty, reason: 'the flush is saved too');
+    });
+  });
 }

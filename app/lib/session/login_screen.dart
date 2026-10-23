@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:family_groceries/app/environment.dart';
 import 'package:family_groceries/l10n/app_localizations.dart';
 import 'package:family_groceries/session/provider_buttons.dart';
 import 'package:family_groceries/session/session_cubit.dart';
@@ -74,7 +75,7 @@ class _SignInPanelState() extends State<SignInPanel> {
   GoTrueClient get _auth => Supabase.instance.client.auth;
 
   String get _redirectTo =>
-      kIsWeb ? '${Uri.base.origin}${widget.returnPath}' : mobileAuthCallback;
+      kIsWeb ? '$webRoot${widget.returnPath}' : mobileAuthCallback;
 
   void _report(Object error) {
     final l10n = AppLocalizations.of(context);

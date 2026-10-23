@@ -47,6 +47,12 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Einkauf braucht das Mikrofon, damit du Einträge diktieren kannst.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Einkauf wandelt deine Sprache in Text um, damit du Einträge diktieren kannst.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

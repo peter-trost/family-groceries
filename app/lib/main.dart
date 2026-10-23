@@ -1,4 +1,5 @@
 import 'package:family_groceries/app/app.dart';
+import 'package:family_groceries/app/device_cache.dart';
 import 'package:family_groceries/app/environment.dart';
 import 'package:family_groceries/session/plugin_sign_in.dart';
 import 'package:family_groceries/session/session_cubit.dart';
@@ -7,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
@@ -40,5 +42,8 @@ Future<void> main() async {
           : null,
     ),
   );
-  runApp(App(session: SessionCubit(client), social: social));
+  final cache = DeviceCache(SharedPreferencesAsync());
+  runApp(
+    App(session: SessionCubit(client, cache), social: social, cache: cache),
+  );
 }

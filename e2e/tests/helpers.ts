@@ -15,6 +15,7 @@ function localStack(): { url: string; key: string; mailpit: string } {
 }
 
 export const { url: supabaseUrl, key: publishableKey, mailpit } = localStack();
+export const functionsUrl = `${supabaseUrl}/functions/v1`;
 
 export const password = 'test-password-123';
 

@@ -1,3 +1,4 @@
+import 'package:family_groceries/list/entry.dart';
 import 'package:family_groceries/list/model.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -36,6 +37,10 @@ abstract interface class ListRepository() {
     List<String> orderedIds,
     Set<String> hiddenIds,
   );
+
+  /// Splits a dictated sentence into entries with the server's German
+  /// splitter (the voice endpoint Siri uses); empty when it found nothing.
+  Future<List<Entry>> splitSpoken(String text);
 
   /// Live changes for the household; returns a function that unsubscribes.
   Future<void> Function() watch({
@@ -218,6 +223,33 @@ class SupabaseListRepository(
             .select(_itemColumns),
       DeleteItem() => items.delete().eq('id', op.itemId).select('id'),
     };
+  }
+
+  @override
+  Future<List<Entry>> splitSpoken(String text) async {
+    try {
+      final response = await _client.functions.invoke(
+        'voice',
+        body: {'text': text, 'mode': 'parse'},
+      );
+      final items = switch (response.data) {
+        {'items': final List<Object?> items} => items,
+        _ => const <Object?>[],
+      };
+      return [
+        for (final item in items)
+          if (item case {
+            'name': final String name,
+            'quantity': final String? quantity,
+          })
+            Entry(name, quantity),
+      ];
+    } on FunctionException catch (e) {
+      if (e.status == 422) {
+        return const [];
+      }
+      rethrow;
+    }
   }
 
   Future<Item?> _fetchItem(String id) async {

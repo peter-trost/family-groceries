@@ -101,8 +101,9 @@ export async function listItems(
 export type NewItem = { name: string; quantity?: string; category?: string; store?: string };
 
 /**
- * Adds items, skipping names already on the active list. Items without a category go through
- * the items trigger and so through classify_item, like everything the app adds.
+ * Adds items, skipping names already on the active list (matched by `item_key`, as `add_items`
+ * and Siri do: "Gurke" is "2 Gurken"). Items without a category go through the items trigger and
+ * so through classify_item and the store memory, like everything the app adds.
  */
 export async function addItems(
   tx: Tx,
@@ -112,15 +113,18 @@ export async function addItems(
   const [cats, shops, active] = await Promise.all([
     categories(tx, household),
     stores(tx, household),
-    activeItems(tx, household),
+    tx<{ id: string; key: string }[]>`
+      select id, public.item_key(name) as key from public.items
+      where household_id = ${household} and status = 'active'`,
   ]);
-  const onList = new Map(active.map((i) => [fold(i.name), i.id]));
+  const onList = new Map(active.map((i) => [i.key, i.id]));
   const added: string[] = [];
   const existing: string[] = [];
   for (const item of wanted) {
     const name = item.name.trim();
     if (name === '') continue;
-    const already = onList.get(fold(name));
+    const [{ key }] = await tx<{ key: string }[]>`select public.item_key(${name}) as key`;
+    const already = onList.get(key);
     if (already) {
       existing.push(already);
       continue;
@@ -132,7 +136,7 @@ export async function addItems(
       values (${household}, ${name.slice(0, 120)}, ${item.quantity?.trim().slice(0, 40) || null},
               ${category}, ${store})
       returning id`;
-    onList.set(fold(name), row.id);
+    onList.set(key, row.id);
     added.push(row.id);
   }
   const rows = await itemsById(tx, [...added, ...existing]);

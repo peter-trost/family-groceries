@@ -15,6 +15,10 @@ abstract final class Environment() {
   /// only the code.
   static const appUrl = String.fromEnvironment('APP_URL');
 
+  /// Path the web app is served under, e.g. `/family-groceries` on GitHub
+  /// Pages; empty at the domain root. Must match the build's `--base-href`.
+  static const webBasePath = String.fromEnvironment('WEB_BASE_PATH');
+
   /// Google OAuth "Web application" client ID. Supabase verifies ID tokens
   /// against it and native sign-in passes it as the server client ID; empty
   /// hides the Google button.
@@ -33,3 +37,6 @@ abstract final class Environment() {
   /// The MCP server endpoint, an edge function of the same project.
   static const mcpUrl = '$supabaseUrl/functions/v1/mcp';
 }
+
+/// Where this web app lives: origin plus [Environment.webBasePath].
+String get webRoot => '${Uri.base.origin}${Environment.webBasePath}';

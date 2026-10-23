@@ -1,0 +1,143 @@
+# Builds the app and uploads it to TestFlight and the Play internal track.
+# Manual only (Actions tab, Run workflow). The lanes are in app/fastlane/Fastfile;
+# docs/RELEASE.md lists the secrets. A platform whose secrets are missing is
+# skipped with a notice, so the run stays green until they are set.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Store to ship to
+        type: choice
+        options: [both, ios, android]
+        default: both
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: 3.47.7
+
+jobs:
+  # Environment secrets are visible only to jobs in the environment, so the
+  # check runs in `release` too.
+  secrets:
+    runs-on: ubuntu-latest
+    environment: release
+    outputs:
+      ios: ${{ steps.check.outputs.ios }}
+      android: ${{ steps.check.outputs.android }}
+    steps:
+      - id: check
+        env:
+          PLATFORM: ${{ inputs.platform }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID || secrets.APPLE_TEAM_ID }}
+          MATCH_GIT_URL: ${{ vars.MATCH_GIT_URL || secrets.MATCH_GIT_URL }}
+          MATCH_DEPLOY_KEY: ${{ secrets.MATCH_DEPLOY_KEY }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEY_PROPERTIES: ${{ secrets.ANDROID_KEY_PROPERTIES }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          check() {
+            local platform="$1"; shift
+            if [ "$PLATFORM" != both ] && [ "$PLATFORM" != "$platform" ]; then
+              echo "$platform=false" >> "$GITHUB_OUTPUT"
+              return
+            fi
+            local missing=()
+            for name in "$@"; do
+              [ -n "${!name}" ] || missing+=("$name")
+            done
+            if [ ${#missing[@]} -eq 0 ]; then
+              echo "$platform=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$platform=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::$platform release skipped: missing ${missing[*]} (see docs/NEEDS_PETER.md)."
+            fi
+          }
+          check ios APPLE_TEAM_ID MATCH_GIT_URL MATCH_DEPLOY_KEY MATCH_PASSWORD \
+            APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_API_KEY_P8
+          check android ANDROID_KEYSTORE_BASE64 ANDROID_KEY_PROPERTIES PLAY_SERVICE_ACCOUNT_JSON
+
+  ios:
+    needs: secrets
+    if: needs.secrets.outputs.ios == 'true'
+    # App Store Connect only accepts builds from the current Xcode SDK.
+    runs-on: macos-26
+    environment: release
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
+        with:
+          working-directory: app
+          bundler-cache: true
+      # match clones the private certificates repo over SSH.
+      - uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.MATCH_DEPLOY_KEY }}
+      # Expressions cannot do arithmetic, hence the shell.
+      - run: echo "BUILD_NUMBER=$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+      - run: bundle exec fastlane ios beta
+        env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID || secrets.APPLE_TEAM_ID }}
+          MATCH_GIT_URL: ${{ vars.MATCH_GIT_URL || secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+
+  android:
+    needs: secrets
+    if: needs.secrets.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    environment: release
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
+        with:
+          working-directory: app
+          bundler-cache: true
+      # key.properties names storeFile=../upload-keystore.jks, which resolves
+      # from android/app to android/upload-keystore.jks.
+      - name: Write the upload keystore
+        run: |
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/upload-keystore.jks
+          printf '%s\n' "$ANDROID_KEY_PROPERTIES" > android/key.properties
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEY_PROPERTIES: ${{ secrets.ANDROID_KEY_PROPERTIES }}
+      - run: echo "BUILD_NUMBER=$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+      - run: bundle exec fastlane android internal
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          PLAY_RELEASE_STATUS: ${{ vars.PLAY_RELEASE_STATUS || 'completed' }}

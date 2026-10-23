@@ -56,6 +56,40 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get dictationStart => 'Diktieren';
+
+  @override
+  String get dictationStop => 'Diktat beenden';
+
+  @override
+  String get dictationListening => 'Ich höre zu …';
+
+  @override
+  String get dictationUnavailable =>
+      'Spracheingabe ist nicht verfügbar. Erlaube Mikrofon und Spracherkennung in den Einstellungen.';
+
+  @override
+  String get dictationNothingHeard => 'Ich habe nichts gehört.';
+
+  @override
+  String get dictationNothingUnderstood =>
+      'Ich habe nichts verstanden, was auf die Liste soll.';
+
+  @override
+  String get dictationSplitFailed =>
+      'Keine Verbindung. Der Text steht im Feld; prüfe ihn und tippe auf Hinzufügen.';
+
+  @override
+  String dictationAdded(String items) {
+    return 'Hinzugefügt: $items.';
+  }
+
+  @override
+  String dictationAlreadyOnList(String items) {
+    return 'Schon auf der Liste: $items.';
+  }
+
+  @override
   String get undo => 'Rückgängig';
 
   @override

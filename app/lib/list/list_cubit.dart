@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:family_groceries/list/entry.dart';
+import 'package:family_groceries/list/list_cache.dart';
 import 'package:family_groceries/list/list_repository.dart';
 import 'package:family_groceries/list/model.dart';
 import 'package:flutter/foundation.dart' show immutable;
@@ -80,8 +81,11 @@ final class const NameTaken(final String name) extends Rejected;
 /// A category or layout change did not save; the catalog was reloaded.
 final class const CatalogRejected() extends Rejected;
 
-class ListCubit(final ListRepository _repo, {DateTime Function()? clock})
-    extends Cubit<ListState> {
+class ListCubit(
+  final ListRepository _repo,
+  final ListCache _cache, {
+  DateTime Function()? clock,
+}) extends Cubit<ListState> {
   this : super(const ListState());
 
   final DateTime Function() _clock = clock ?? DateTime.now;
@@ -89,6 +93,7 @@ class ListCubit(final ListRepository _repo, {DateTime Function()? clock})
   Future<void> Function()? _unwatch;
   Timer? _retry;
   Timer? _catalogReload;
+  Timer? _save;
   var _flushing = false;
 
   /// Rows acknowledged while a resync is in flight; they beat its snapshot.
@@ -96,7 +101,24 @@ class ListCubit(final ListRepository _repo, {DateTime Function()? clock})
 
   Stream<Rejected> get rejections => _rejections.stream;
 
-  void start() {
+  /// Shows the cached list, if any, then connects. Ops queued before the
+  /// cache answers go after the cached ones.
+  void start() => unawaited(_start());
+
+  Future<void> _start() async {
+    if (await _cache.load() case final cached?) {
+      emit(
+        state.copyWith(
+          catalog: cached.catalog,
+          server: {for (final item in cached.server) item.id: item},
+          pending: [...cached.pending, ...state.pending],
+          loaded: true,
+        ),
+      );
+    }
+    if (isClosed) {
+      return;
+    }
     _unwatch = _repo.watch(
       onItem: (row) => _setServer(mergeServerRow(state.server, row)),
       onItemDeleted: (id) {
@@ -123,8 +145,16 @@ class ListCubit(final ListRepository _repo, {DateTime Function()? clock})
     unawaited(resync());
   }
 
-  AddResult add(String input) {
-    final entry = parseEntry(input);
+  AddResult add(String input) => addEntry(parseEntry(input));
+
+  /// Splits a dictated sentence on the server and adds each entry.
+  /// Throws when the server can't be reached; nothing is added then.
+  Future<List<AddResult>> addSpoken(String text) async {
+    final entries = await _repo.splitSpoken(text);
+    return [for (final entry in entries) addEntry(entry)];
+  }
+
+  AddResult addEntry(Entry entry) {
     if (entry.name.isEmpty) {
       return const NothingToAdd();
     }
@@ -345,6 +375,38 @@ class ListCubit(final ListRepository _repo, {DateTime Function()? clock})
     });
   }
 
+  /// Saves what a restart needs: a change to the queue at once, since the
+  /// app may be killed right after a tap, and server churn once it settles.
+  /// Not on close: the list closes on sign-out and household switches, which
+  /// drop the cache.
+  @override
+  void onChange(Change<ListState> change) {
+    super.onChange(change);
+    final next = change.nextState;
+    final before = change.currentState;
+    if (!next.loaded) {
+      return;
+    }
+    if (!identical(next.pending, before.pending)) {
+      _save?.cancel();
+      _saveNow(next);
+    } else if (!identical(next.catalog, before.catalog) ||
+        !identical(next.server, before.server)) {
+      _save?.cancel();
+      _save = Timer(const Duration(milliseconds: 300), () => _saveNow(state));
+    }
+  }
+
+  void _saveNow(ListState state) => unawaited(
+    _cache.save(
+      ListSnapshot(
+        catalog: state.catalog,
+        server: [...state.server.values],
+        pending: state.pending,
+      ),
+    ),
+  );
+
   // Fetches and acks can land after the screen is gone.
   @override
   void emit(ListState state) {
@@ -357,6 +419,7 @@ class ListCubit(final ListRepository _repo, {DateTime Function()? clock})
   Future<void> close() async {
     _retry?.cancel();
     _catalogReload?.cancel();
+    _save?.cancel();
     await _unwatch?.call();
     await _rejections.close();
     await super.close();

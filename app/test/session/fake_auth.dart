@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:family_groceries/session/session_cubit.dart';
 import 'package:family_groceries/session/social_sign_in.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,9 +14,13 @@ class FakeAuth() extends Fake implements GoTrueClient {
   final idTokenCalls = <IdTokenCall>[];
   final metadataUpdates = <Map<String, Object?>>[];
   Exception? idTokenError;
+  User? user;
 
   @override
   Stream<AuthState> get onAuthStateChange => states.stream;
+
+  @override
+  User? get currentUser => user;
 
   Future<void> close() => states.close();
 
@@ -43,11 +49,40 @@ class FakeAuth() extends Fake implements GoTrueClient {
   }
 }
 
+/// A client whose database is unreachable.
 class FakeClient(final FakeAuth fakeAuth)
     extends Fake
     implements SupabaseClient {
   @override
   GoTrueClient get auth => fakeAuth;
+
+  @override
+  SupabaseQueryBuilder from(String table) =>
+      throw const SocketException('offline');
+}
+
+/// The device cache, in memory; [households] is its contents.
+class MemorySessionCache() implements SessionCache {
+  final households = <String, Household>{};
+  var forgotten = 0;
+
+  @override
+  Future<Household?> household(String userId) async => households[userId];
+
+  @override
+  Future<void> remember(String userId, Household? household) async {
+    if (household == null) {
+      households.remove(userId);
+    } else {
+      households[userId] = household;
+    }
+  }
+
+  @override
+  Future<void> forget() async {
+    households.clear();
+    forgotten++;
+  }
 }
 
 /// A provider dialog that answers with [result] or throws [error].

@@ -15,6 +15,12 @@ reasons are in [`docs/DECISIONS.md`](docs/DECISIONS.md).
   in `tests/`, Deno edge functions in `functions/` (`_shared/` for helpers).
 - `e2e/`: Playwright tests that drive the Flutter web build against the local
   stack.
+- `app/fastlane/`, `.github/workflows/release.yml`: TestFlight and Play
+  internal releases, manual, signing from secrets (`docs/RELEASE.md`);
+  `web-deploy.yml` publishes the web app to GitHub Pages.
+- `supabase/functions/voice/`: the Siri and in-app dictation endpoint; the
+  German sentence splitter is `parse.ts`, its table of sentences
+  `parse_test.ts` (`docs/SIRI_SHORTCUT.md` for the Shortcut).
 - `scripts/`: `bootstrap.sh` (toolchain), `dev.sh` (local stack + web dev
   server), `verify.sh` (every CI gate, locally), `merge-pr.sh` (land a PR
   as one commit with the required author and trailers).

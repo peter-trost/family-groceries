@@ -10,7 +10,7 @@ enum ConnectionStatus() {
 /// The list's only door to the backend. Errors from [send] other than a
 /// [RejectedOp] are treated as transient and retried.
 abstract interface class ListRepository() {
-  Future<List<Category>> fetchCategories();
+  Future<Catalog> fetchCatalog();
 
   /// Active items plus the most recently bought ones.
   Future<List<Item>> fetchItems();
@@ -19,19 +19,51 @@ abstract interface class ListRepository() {
   /// the item no longer exists.
   Future<Item?> send(ItemOp op);
 
+  Future<void> renameCategory(String id, String name);
+
+  /// Appends the category to the route and to every store layout.
+  Future<void> createCategory(String name);
+
+  /// [ids] is every category, in the new route order.
+  Future<void> reorderCategories(List<String> ids);
+
+  /// Moves the category's items to [reassignTo], by default the fallback.
+  Future<void> deleteCategory(String id, {String? reassignTo});
+
+  /// [orderedIds] is every category in the store's walking order.
+  Future<void> setStoreLayout(
+    String storeId,
+    List<String> orderedIds,
+    Set<String> hiddenIds,
+  );
+
   /// Live changes for the household; returns a function that unsubscribes.
   Future<void> Function() watch({
     required void Function(Item item) onItem,
     required void Function(String id) onItemDeleted,
-    required void Function() onCategoriesChanged,
+    required void Function() onCatalogChanged,
     required void Function(ConnectionStatus status) onStatus,
   });
 }
 
-/// The server refused an op (constraint, policy); retrying will not help.
-final class const RejectedOp(final String message) implements Exception {
+/// The server refused a write (constraint, policy); retrying will not help.
+final class const RejectedOp(
+  final String message, {
+
+  /// A category or store with that name already exists.
+  final bool nameTaken = false,
+}) implements Exception {
   @override
   String toString() => 'RejectedOp($message)';
+}
+
+/// Runs a write; a PostgREST answer means the database refused it.
+Future<T> _refusable<T>(Future<T> Function() write) async {
+  try {
+    return await write();
+  } on PostgrestException catch (e) {
+    throw RejectedOp(e.message, nameTaken: e.code == '23505');
+  }
 }
 
 class SupabaseListRepository(
@@ -43,14 +75,74 @@ class SupabaseListRepository(
       'updated_at, bought_at';
 
   @override
-  Future<List<Category>> fetchCategories() async {
-    final rows = await _client
-        .from('categories')
-        .select('id, name, sort_order, seed_key')
-        .eq('household_id', householdId)
-        .order('sort_order');
-    return rows.map(Category.fromJson).toList();
+  Future<Catalog> fetchCatalog() async {
+    final (categories, stores, layout) = await (
+      _client
+          .from('categories')
+          .select('id, name, sort_order, seed_key')
+          .eq('household_id', householdId)
+          .order('sort_order', ascending: true),
+      _client
+          .from('stores')
+          .select('id, name, sort_order, seed_key')
+          .eq('household_id', householdId)
+          .order('sort_order', ascending: true),
+      _client
+          .from('store_category_order')
+          .select('store_id, category_id, sort_order, hidden')
+          .eq('household_id', householdId),
+    ).wait;
+    return Catalog(
+      categories: categories.map(Category.fromJson).toList(),
+      stores: stores.map(Store.fromJson).toList(),
+      layout: layout.map(StoreCategory.fromJson).toList(),
+    );
   }
+
+  @override
+  Future<void> renameCategory(String id, String name) => _refusable(
+    () => _client.from('categories').update({'name': name}).eq('id', id),
+  );
+
+  @override
+  Future<void> createCategory(String name) => _refusable(
+    () => _client.rpc<void>(
+      'create_category',
+      params: {'p_household': householdId, 'p_name': name},
+    ),
+  );
+
+  @override
+  Future<void> reorderCategories(List<String> ids) => _refusable(
+    () => _client.rpc<void>(
+      'reorder_categories',
+      params: {'p_household': householdId, 'p_ids': ids},
+    ),
+  );
+
+  @override
+  Future<void> deleteCategory(String id, {String? reassignTo}) => _refusable(
+    () => _client.rpc<void>(
+      'delete_category',
+      params: {'p_category': id, 'p_reassign_to': reassignTo},
+    ),
+  );
+
+  @override
+  Future<void> setStoreLayout(
+    String storeId,
+    List<String> orderedIds,
+    Set<String> hiddenIds,
+  ) => _refusable(
+    () => _client.rpc<void>(
+      'set_store_layout',
+      params: {
+        'p_store': storeId,
+        'p_categories': orderedIds,
+        'p_hidden': hiddenIds.toList(),
+      },
+    ),
+  );
 
   @override
   Future<List<Item>> fetchItems() async {
@@ -73,19 +165,14 @@ class SupabaseListRepository(
 
   @override
   Future<Item?> send(ItemOp op) async {
-    try {
-      final rows = await _write(op);
-      if (op is DeleteItem) {
-        return null;
-      }
-      // No row back: the item is gone, or an upsert hit an existing id.
-      return rows.isEmpty
-          ? await _fetchItem(op.itemId)
-          : Item.fromJson(rows.single);
-    } on PostgrestException catch (e) {
-      // PostgREST answered: the request reached the database and was refused.
-      throw RejectedOp(e.message);
+    final rows = await _refusable(() => _write(op));
+    if (op is DeleteItem) {
+      return null;
     }
+    // No row back: the item is gone, or an upsert hit an existing id.
+    return rows.isEmpty
+        ? await _fetchItem(op.itemId)
+        : Item.fromJson(rows.single);
   }
 
   Future<List<Map<String, dynamic>>> _write(ItemOp op) {
@@ -99,21 +186,34 @@ class SupabaseListRepository(
               'name': item.name,
               'quantity': item.quantity,
               'category_id': ?item.categoryId,
+              // None given: the server fills in the remembered store.
+              'store_id': ?item.storeId,
               'status': item.status.name,
             }, ignoreDuplicates: true)
             .select(_itemColumns),
-      SetStatus(:final status) =>
+      SetStatus(:final status, :final storeId) =>
         items
-            .update({'status': status.name})
+            .update({'status': status.name, 'store_id': ?storeId})
             .eq('id', op.itemId)
             .select(_itemColumns),
-      EditItem(:final name, :final quantity, :final categoryId) =>
+      EditItem(
+        :final name,
+        :final quantity,
+        :final categoryId,
+        :final storeId,
+      ) =>
         items
             .update({
               'name': name,
               'quantity': quantity,
               'category_id': categoryId,
+              'store_id': storeId,
             })
+            .eq('id', op.itemId)
+            .select(_itemColumns),
+      MoveItem(:final categoryId) =>
+        items
+            .update({'category_id': categoryId})
             .eq('id', op.itemId)
             .select(_itemColumns),
       DeleteItem() => items.delete().eq('id', op.itemId).select('id'),
@@ -133,7 +233,7 @@ class SupabaseListRepository(
   Future<void> Function() watch({
     required void Function(Item item) onItem,
     required void Function(String id) onItemDeleted,
-    required void Function() onCategoriesChanged,
+    required void Function() onCatalogChanged,
     required void Function(ConnectionStatus status) onStatus,
   }) {
     final mine = PostgresChangeFilter(
@@ -141,8 +241,30 @@ class SupabaseListRepository(
       column: 'household_id',
       value: householdId,
     );
-    final channel = _client
-        .channel('household:$householdId')
+    final channel = _client.channel('household:$householdId');
+    for (final table in ['categories', 'stores', 'store_category_order']) {
+      for (final event in [
+        PostgresChangeEvent.insert,
+        PostgresChangeEvent.update,
+      ]) {
+        channel.onPostgresChanges(
+          event: event,
+          schema: 'public',
+          table: table,
+          filter: mine,
+          callback: (_) => onCatalogChanged(),
+        );
+      }
+      // Delete events cannot be filtered; another household's only costs a
+      // reload.
+      channel.onPostgresChanges(
+        event: PostgresChangeEvent.delete,
+        schema: 'public',
+        table: table,
+        callback: (_) => onCatalogChanged(),
+      );
+    }
+    channel
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
@@ -166,13 +288,6 @@ class SupabaseListRepository(
             final String id => onItemDeleted(id),
             _ => null,
           },
-        )
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'categories',
-          filter: mine,
-          callback: (_) => onCategoriesChanged(),
         )
         .subscribe(
           (status, _) => onStatus(switch (status) {

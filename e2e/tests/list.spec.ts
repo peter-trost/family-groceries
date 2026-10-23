@@ -6,10 +6,10 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('adds are grouped by category in route order', async ({ page }) => {
-  for (const item of ['Klopapier', '2 Vollmilch', 'Äpfel', 'Glühbirnen', 'Brot']) {
+  for (const item of ['Klopapier', '2 Vollmilch', 'Äpfel', 'Quietscheentchen', 'Brot']) {
     await addItem(page, item);
   }
-  await expect(itemRow(page, 'Glühbirnen')).toBeVisible();
+  await expect(itemRow(page, 'Quietscheentchen')).toBeVisible();
   await expect(itemRow(page, 'Vollmilch')).toHaveAccessibleName('Vollmilch 2');
 
   const headings = await page.getByRole('heading', { level: 2 }).allTextContents();

@@ -711,6 +711,132 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Die App verliert sofort den Zugriff auf deine Liste.'**
   String get disconnectBody;
+
+  /// No description provided for @allStores.
+  ///
+  /// In de, this message translates to:
+  /// **'Alle'**
+  String get allStores;
+
+  /// No description provided for @editStoreLayout.
+  ///
+  /// In de, this message translates to:
+  /// **'Reihenfolge bearbeiten'**
+  String get editStoreLayout;
+
+  /// No description provided for @showHiddenItems.
+  ///
+  /// In de, this message translates to:
+  /// **'{count, plural, =1{1 Artikel, den es bei {store} meist nicht gibt, anzeigen} other{{count} Artikel, die es bei {store} meist nicht gibt, anzeigen}}'**
+  String showHiddenItems(int count, String store);
+
+  /// No description provided for @hideHiddenItems.
+  ///
+  /// In de, this message translates to:
+  /// **'{count, plural, =1{1 Artikel, den es bei {store} meist nicht gibt, ausblenden} other{{count} Artikel, die es bei {store} meist nicht gibt, ausblenden}}'**
+  String hideHiddenItems(int count, String store);
+
+  /// No description provided for @emptyAtStore.
+  ///
+  /// In de, this message translates to:
+  /// **'Für {store} steht nichts auf der Liste.'**
+  String emptyAtStore(String store);
+
+  /// No description provided for @itemStore.
+  ///
+  /// In de, this message translates to:
+  /// **'Geschäft'**
+  String get itemStore;
+
+  /// No description provided for @anyStore.
+  ///
+  /// In de, this message translates to:
+  /// **'Alle Geschäfte'**
+  String get anyStore;
+
+  /// No description provided for @manageCategories.
+  ///
+  /// In de, this message translates to:
+  /// **'Kategorien verwalten'**
+  String get manageCategories;
+
+  /// No description provided for @categoriesTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Kategorien'**
+  String get categoriesTitle;
+
+  /// No description provided for @categoriesHint.
+  ///
+  /// In de, this message translates to:
+  /// **'In dieser Reihenfolge sortiert „Alle“ die Liste. Tippe auf eine Kategorie, um sie umzubenennen.'**
+  String get categoriesHint;
+
+  /// No description provided for @categoryName.
+  ///
+  /// In de, this message translates to:
+  /// **'Name'**
+  String get categoryName;
+
+  /// No description provided for @renameCategory.
+  ///
+  /// In de, this message translates to:
+  /// **'Kategorie umbenennen'**
+  String get renameCategory;
+
+  /// No description provided for @addCategory.
+  ///
+  /// In de, this message translates to:
+  /// **'Kategorie hinzufügen'**
+  String get addCategory;
+
+  /// No description provided for @deleteCategory.
+  ///
+  /// In de, this message translates to:
+  /// **'{name} löschen'**
+  String deleteCategory(String name);
+
+  /// No description provided for @moveItemsTo.
+  ///
+  /// In de, this message translates to:
+  /// **'Artikel verschieben nach'**
+  String get moveItemsTo;
+
+  /// No description provided for @dragCategory.
+  ///
+  /// In de, this message translates to:
+  /// **'{name} verschieben'**
+  String dragCategory(String name);
+
+  /// No description provided for @categoryNameTaken.
+  ///
+  /// In de, this message translates to:
+  /// **'Eine Kategorie „{name}“ gibt es schon.'**
+  String categoryNameTaken(String name);
+
+  /// No description provided for @catalogSaveFailed.
+  ///
+  /// In de, this message translates to:
+  /// **'Die Änderung konnte nicht gespeichert werden.'**
+  String get catalogSaveFailed;
+
+  /// No description provided for @storeLayoutTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'{store}: Reihenfolge'**
+  String storeLayoutTitle(String store);
+
+  /// No description provided for @storeLayoutHint.
+  ///
+  /// In de, this message translates to:
+  /// **'Ordne die Kategorien so, wie du durch den Laden gehst. Schalte aus, was es dort nicht gibt.'**
+  String get storeLayoutHint;
+
+  /// No description provided for @storeCarries.
+  ///
+  /// In de, this message translates to:
+  /// **'{category} gibt es bei {store}'**
+  String storeCarries(String category, String store);
 }
 
 class _AppLocalizationsDelegate

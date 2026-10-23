@@ -87,7 +87,8 @@ void main() {
     repo.reject = true;
     cubit.add('Wein');
     await settle();
-    expect(rejections.single.itemName, 'Wein');
+    expect(rejections.single, isA<ItemRejected>());
+    expect((rejections.single as ItemRejected).itemName, 'Wein');
     expect(cubit.state.pending, isEmpty);
     expect(activeNames(), isEmpty);
     await sub.cancel();
@@ -119,4 +120,138 @@ void main() {
     await settle();
     expect(repo.rows[item.id]!.categoryId, 'chilled');
   });
+  test('in a store view, adds and ticks are tagged with that store', () async {
+    cubit.selectStore(const AtStore('lidl'));
+    final id = (cubit.add('Brot') as Added).item.id;
+    await settle();
+    expect(repo.rows[id]!.storeId, 'lidl');
+
+    cubit.selectStore(const AllStores());
+    final other = (cubit.add('Käse') as Added).item.id;
+    await settle();
+    expect(repo.rows[other]!.storeId, isNull);
+
+    cubit
+      ..selectStore(const AtStore('dm'))
+      ..tick(other);
+    await settle();
+    expect(repo.sent.last, isA<SetStatus>());
+    expect(repo.rows[other]!.status, ItemStatus.bought);
+    expect(repo.rows[other]!.storeId, 'dm');
+  });
+
+  test('ticking in "Alle" sends no store', () async {
+    final id = repo.remoteAdd('Brot', storeId: 'dm').id;
+    await cubit.resync();
+    cubit.tick(id);
+    await settle();
+    expect((repo.sent.last as SetStatus).storeId, isNull);
+    expect(repo.rows[id]!.storeId, 'dm');
+  });
+
+  test('a move sends only the new category', () async {
+    final id = (cubit.add('Vollmilch') as Added).item.id;
+    await settle();
+    cubit.move(id, 'produce');
+    expect(cubit.state.items[id]!.categoryId, 'produce', reason: 'optimistic');
+    await settle();
+    expect(repo.sent.last, isA<MoveItem>());
+    expect(repo.rows[id]!.categoryId, 'produce');
+  });
+
+  test('an edit sends the store tag, null clearing it', () async {
+    final id = (cubit.add('Brot') as Added).item.id;
+    await settle();
+    cubit.edit(
+      id,
+      name: 'Brot',
+      quantity: null,
+      categoryId: 'other',
+      storeId: 'dm',
+    );
+    await settle();
+    expect(repo.rows[id]!.storeId, 'dm');
+    cubit.edit(
+      id,
+      name: 'Brot',
+      quantity: null,
+      categoryId: 'other',
+      storeId: null,
+    );
+    await settle();
+    expect(repo.rows[id]!.storeId, isNull);
+  });
+
+  List<String> routeOrder() => [
+    for (final c in cubit.state.catalog.categories) c.id,
+  ];
+
+  test('a reorder shows at once and is saved', () async {
+    final saved = cubit.reorderCategories(['chilled', 'produce', 'other']);
+    expect(routeOrder(), ['chilled', 'produce', 'other']);
+    await saved;
+    expect(repo.catalogCalls, ['reorder(chilled, produce, other)']);
+    expect(routeOrder(), ['chilled', 'produce', 'other']);
+  });
+
+  test('a refused reorder is reported and reverts', () async {
+    final rejections = <Rejected>[];
+    final sub = cubit.rejections.listen(rejections.add);
+    repo.reject = true;
+    final saved = cubit.reorderCategories(['chilled', 'produce', 'other']);
+    expect(routeOrder(), ['chilled', 'produce', 'other']);
+    await saved;
+    await settle();
+    expect(routeOrder(), ['produce', 'chilled', 'other']);
+    expect(rejections.single, isA<CatalogRejected>());
+    await sub.cancel();
+  });
+
+  test('a store layout change is saved and sorts the store view', () async {
+    await cubit.setStoreLayout(
+      'dm',
+      ['produce', 'other', 'chilled'],
+      {'chilled'},
+    );
+    final grouping = groupActive(
+      [repo.remoteAdd('Äpfel', categoryId: 'produce')],
+      cubit.state.catalog,
+      const AtStore('dm'),
+    );
+    expect(grouping.groups.single.category!.id, 'produce');
+    expect(repo.layout.where((r) => r.storeId == 'dm' && r.hidden), [
+      isA<StoreCategory>().having((r) => r.categoryId, 'id', 'chilled'),
+    ]);
+  });
+
+  test('a duplicate category name is reported by name', () async {
+    final rejections = <Rejected>[];
+    final sub = cubit.rejections.listen(rejections.add);
+    await cubit.renameCategory('chilled', 'Sonstiges');
+    await settle();
+    expect(rejections.single, isA<NameTaken>());
+    expect(cubit.state.catalog.categories[1].name, 'Kühlregal');
+    await sub.cancel();
+  });
+
+  test('a deleted category moves its items to the chosen one', () async {
+    final id = (cubit.add('Vollmilch') as Added).item.id;
+    await settle();
+    await cubit.deleteCategory('chilled', reassignTo: 'produce');
+    expect(routeOrder(), ['produce', 'other']);
+    expect(cubit.state.items[id]!.categoryId, 'produce');
+  });
+
+  test(
+    'when the selected store disappears the view falls back to Alle',
+    () async {
+      cubit.selectStore(const AtStore('dm'));
+      repo.stores = [...repo.stores.where((s) => s.id != 'dm')];
+      for (var i = 0; i < 5; i++) {
+        repo.emitCatalogChanged!();
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(cubit.state.filter, isA<AllStores>());
+    },
+  );
 }

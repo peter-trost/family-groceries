@@ -69,6 +69,9 @@ jobs:
       - run: deno fmt --check
       - run: deno lint
       - run: deno test --allow-env --allow-net
+      # Job 2: the classifier dictionary and the migration generated from it.
+      - name: Classifier dictionary matches its migration
+        run: deno fmt --check ../classifier && deno lint ../classifier && deno test --allow-read ../classifier
 
   database:
     runs-on: ubuntu-latest

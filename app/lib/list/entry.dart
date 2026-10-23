@@ -13,9 +13,12 @@ class const Entry(final String name, final String? quantity) {
   String toString() => 'Entry($name, $quantity)';
 }
 
+// Keep in sync with public.parse_entry (supabase/tests/classifier.test.sql).
 const _units =
     'x|kg|g|gr|l|ml|stk|stück|pck|packung|packungen|dose|dosen|flasche|'
-    'flaschen|bund|becher|glas|gläser|tüte|tüten|beutel|netz|kiste';
+    'flaschen|bund|becher|glas|gläser|tüte|tüten|beutel|netz|kiste|kisten|'
+    'kasten|kästen|pfund|liter|kilo|gramm|rolle|rollen|tafel|tafeln|stange|'
+    'stangen';
 
 final _leading = RegExp(
   '^(\\d+(?:[.,]\\d+)?)(?:\\s*($_units)\\.?)?\\s+(.+)\$',

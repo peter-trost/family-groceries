@@ -8,6 +8,9 @@ final class const EditSaved({
   required final String name,
   required final String? quantity,
   required final String categoryId,
+
+  /// Null: any store.
+  required final String? storeId,
 }) extends EditResult;
 
 final class const EditDeleted() extends EditResult;
@@ -15,17 +18,17 @@ final class const EditDeleted() extends EditResult;
 Future<EditResult?> showEditItemSheet(
   BuildContext context, {
   required Item item,
-  required List<Category> categories,
+  required Catalog catalog,
 }) => showModalBottomSheet<EditResult>(
   context: context,
   isScrollControlled: true,
   showDragHandle: true,
-  builder: (_) => _EditItemSheet(item: item, categories: categories),
+  builder: (_) => _EditItemSheet(item: item, catalog: catalog),
 );
 
 class const _EditItemSheet({
   required final Item item,
-  required final List<Category> categories,
+  required final Catalog catalog,
 }) extends StatefulWidget {
   @override
   State<_EditItemSheet> createState() => _EditItemSheetState();
@@ -35,6 +38,10 @@ class _EditItemSheetState() extends State<_EditItemSheet> {
   late final _name = TextEditingController(text: widget.item.name);
   late final _quantity = TextEditingController(text: widget.item.quantity);
   late String? _categoryId = widget.item.categoryId;
+  late String? _storeId =
+      widget.catalog.stores.any((s) => s.id == widget.item.storeId)
+      ? widget.item.storeId
+      : null;
 
   @override
   void dispose() {
@@ -55,6 +62,7 @@ class _EditItemSheetState() extends State<_EditItemSheet> {
         name: name,
         quantity: quantity.isEmpty ? null : quantity,
         categoryId: categoryId,
+        storeId: _storeId,
       ),
     );
   }
@@ -96,13 +104,24 @@ class _EditItemSheetState() extends State<_EditItemSheet> {
             initialValue: _categoryId,
             decoration: InputDecoration(labelText: l10n.itemCategory),
             items: [
-              for (final category in widget.categories)
+              for (final category in widget.catalog.categories)
                 DropdownMenuItem(
                   value: category.id,
                   child: Text(category.name),
                 ),
             ],
             onChanged: (id) => setState(() => _categoryId = id),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String?>(
+            initialValue: _storeId,
+            decoration: InputDecoration(labelText: l10n.itemStore),
+            items: [
+              DropdownMenuItem(child: Text(l10n.anyStore)),
+              for (final store in widget.catalog.stores)
+                DropdownMenuItem(value: store.id, child: Text(store.name)),
+            ],
+            onChanged: (id) => setState(() => _storeId = id),
           ),
           const SizedBox(height: 24),
           Row(

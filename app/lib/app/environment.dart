@@ -29,4 +29,7 @@ abstract final class Environment() {
 
   /// Whether the Supabase project has Sign in with Apple configured.
   static const signInWithApple = bool.fromEnvironment('SIGN_IN_WITH_APPLE');
+
+  /// The MCP server endpoint, an edge function of the same project.
+  static const mcpUrl = '$supabaseUrl/functions/v1/mcp';
 }

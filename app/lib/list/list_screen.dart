@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:family_groceries/app/router.dart';
 import 'package:family_groceries/household/invite_dialog.dart';
 import 'package:family_groceries/l10n/app_localizations.dart';
 import 'package:family_groceries/list/edit_item_sheet.dart';
@@ -10,6 +11,7 @@ import 'package:family_groceries/session/session_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// The whole app for day-to-day use: add field on top, list beneath.
@@ -392,6 +394,7 @@ class const _SyncIndicator() extends StatelessWidget {
 enum _MenuAction() {
   invite,
   join,
+  access,
   signOut,
 }
 
@@ -405,6 +408,7 @@ class const _Menu({required final Household household})
       onSelected: (action) => unawaited(switch (action) {
         _MenuAction.invite => showInviteDialog(context, household),
         _MenuAction.join => showJoinCodeDialog(context),
+        _MenuAction.access => context.push(settingsPath),
         _MenuAction.signOut => context.read<SessionCubit>().signOut(),
       }),
       itemBuilder: (_) => [
@@ -416,6 +420,7 @@ class const _Menu({required final Household household})
           value: _MenuAction.join,
           child: Text(l10n.joinOtherHousehold),
         ),
+        PopupMenuItem(value: _MenuAction.access, child: Text(l10n.accessTitle)),
         PopupMenuItem(value: _MenuAction.signOut, child: Text(l10n.signOut)),
       ],
     );

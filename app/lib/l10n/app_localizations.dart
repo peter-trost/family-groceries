@@ -459,6 +459,258 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Lädt …'**
   String get loading;
+
+  /// No description provided for @consentTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Zugriff erlauben?'**
+  String get consentTitle;
+
+  /// No description provided for @consentSignedInAs.
+  ///
+  /// In de, this message translates to:
+  /// **'Angemeldet als {email}'**
+  String consentSignedInAs(String email);
+
+  /// No description provided for @consentHousehold.
+  ///
+  /// In de, this message translates to:
+  /// **'Haushalt: {name}'**
+  String consentHousehold(String name);
+
+  /// No description provided for @consentWants.
+  ///
+  /// In de, this message translates to:
+  /// **'{client} möchte:'**
+  String consentWants(String client);
+
+  /// No description provided for @consentListAccess.
+  ///
+  /// In de, this message translates to:
+  /// **'Einträge deiner Einkaufsliste lesen, hinzufügen, abhaken und verschieben'**
+  String get consentListAccess;
+
+  /// No description provided for @scopeOpenid.
+  ///
+  /// In de, this message translates to:
+  /// **'Deine Anmeldung bestätigen'**
+  String get scopeOpenid;
+
+  /// No description provided for @scopeEmail.
+  ///
+  /// In de, this message translates to:
+  /// **'Deine E-Mail-Adresse'**
+  String get scopeEmail;
+
+  /// No description provided for @scopeProfile.
+  ///
+  /// In de, this message translates to:
+  /// **'Dein Name und Profil'**
+  String get scopeProfile;
+
+  /// No description provided for @scopePhone.
+  ///
+  /// In de, this message translates to:
+  /// **'Deine Telefonnummer'**
+  String get scopePhone;
+
+  /// No description provided for @scopeOfflineAccess.
+  ///
+  /// In de, this message translates to:
+  /// **'Dauerhaft angemeldet bleiben'**
+  String get scopeOfflineAccess;
+
+  /// No description provided for @consentAllow.
+  ///
+  /// In de, this message translates to:
+  /// **'Erlauben'**
+  String get consentAllow;
+
+  /// No description provided for @consentDeny.
+  ///
+  /// In de, this message translates to:
+  /// **'Ablehnen'**
+  String get consentDeny;
+
+  /// No description provided for @redirecting.
+  ///
+  /// In de, this message translates to:
+  /// **'Weiterleitung …'**
+  String get redirecting;
+
+  /// No description provided for @consentInvalid.
+  ///
+  /// In de, this message translates to:
+  /// **'Diese Anfrage ist ungültig oder abgelaufen. Starte die Verbindung in deiner App neu.'**
+  String get consentInvalid;
+
+  /// No description provided for @accessTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Zugänge'**
+  String get accessTitle;
+
+  /// No description provided for @mcpServer.
+  ///
+  /// In de, this message translates to:
+  /// **'MCP-Server'**
+  String get mcpServer;
+
+  /// No description provided for @mcpServerBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Für Claude, ChatGPT und andere KI-Assistenten. Verbinde per Anmeldung (OAuth) oder mit einem Zugriffstoken.'**
+  String get mcpServerBody;
+
+  /// No description provided for @accessTokens.
+  ///
+  /// In de, this message translates to:
+  /// **'Zugriffstoken'**
+  String get accessTokens;
+
+  /// No description provided for @noTokens.
+  ///
+  /// In de, this message translates to:
+  /// **'Kein aktiver Token.'**
+  String get noTokens;
+
+  /// No description provided for @tokenHint.
+  ///
+  /// In de, this message translates to:
+  /// **'…{hint}'**
+  String tokenHint(String hint);
+
+  /// No description provided for @createdOn.
+  ///
+  /// In de, this message translates to:
+  /// **'Erstellt am {date}'**
+  String createdOn(DateTime date);
+
+  /// No description provided for @lastUsedOn.
+  ///
+  /// In de, this message translates to:
+  /// **'Zuletzt benutzt {date}'**
+  String lastUsedOn(DateTime date);
+
+  /// No description provided for @neverUsed.
+  ///
+  /// In de, this message translates to:
+  /// **'Noch nie benutzt'**
+  String get neverUsed;
+
+  /// No description provided for @createToken.
+  ///
+  /// In de, this message translates to:
+  /// **'Token erstellen'**
+  String get createToken;
+
+  /// No description provided for @create.
+  ///
+  /// In de, this message translates to:
+  /// **'Erstellen'**
+  String get create;
+
+  /// No description provided for @tokenName.
+  ///
+  /// In de, this message translates to:
+  /// **'Name'**
+  String get tokenName;
+
+  /// No description provided for @tokenNameHint.
+  ///
+  /// In de, this message translates to:
+  /// **'z. B. Claude oder Siri'**
+  String get tokenNameHint;
+
+  /// No description provided for @tokenCreated.
+  ///
+  /// In de, this message translates to:
+  /// **'Token erstellt'**
+  String get tokenCreated;
+
+  /// No description provided for @tokenShownOnce.
+  ///
+  /// In de, this message translates to:
+  /// **'Kopiere den Token jetzt. Er wird nicht noch einmal angezeigt.'**
+  String get tokenShownOnce;
+
+  /// No description provided for @done.
+  ///
+  /// In de, this message translates to:
+  /// **'Fertig'**
+  String get done;
+
+  /// No description provided for @revokeToken.
+  ///
+  /// In de, this message translates to:
+  /// **'{name} widerrufen'**
+  String revokeToken(String name);
+
+  /// No description provided for @revokeTokenTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Token widerrufen?'**
+  String get revokeTokenTitle;
+
+  /// No description provided for @revokeTokenBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Apps, die ihn benutzen, verlieren sofort den Zugriff.'**
+  String get revokeTokenBody;
+
+  /// No description provided for @revoke.
+  ///
+  /// In de, this message translates to:
+  /// **'Widerrufen'**
+  String get revoke;
+
+  /// No description provided for @tooManyTokens.
+  ///
+  /// In de, this message translates to:
+  /// **'Höchstens 20 aktive Tokens.'**
+  String get tooManyTokens;
+
+  /// No description provided for @connectedApps.
+  ///
+  /// In de, this message translates to:
+  /// **'Verbundene Apps'**
+  String get connectedApps;
+
+  /// No description provided for @noConnectedApps.
+  ///
+  /// In de, this message translates to:
+  /// **'Noch keine App verbunden.'**
+  String get noConnectedApps;
+
+  /// No description provided for @connectedOn.
+  ///
+  /// In de, this message translates to:
+  /// **'Verbunden am {date}'**
+  String connectedOn(DateTime date);
+
+  /// No description provided for @disconnect.
+  ///
+  /// In de, this message translates to:
+  /// **'Trennen'**
+  String get disconnect;
+
+  /// No description provided for @disconnectApp.
+  ///
+  /// In de, this message translates to:
+  /// **'{name} trennen'**
+  String disconnectApp(String name);
+
+  /// No description provided for @disconnectTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'{name} trennen?'**
+  String disconnectTitle(String name);
+
+  /// No description provided for @disconnectBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Die App verliert sofort den Zugriff auf deine Liste.'**
+  String get disconnectBody;
 }
 
 class _AppLocalizationsDelegate

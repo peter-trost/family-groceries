@@ -166,3 +166,28 @@ The variable names are in `.env.example`.
 18. Try it once: Google and Apple on the iPhone, Google and Apple on an
     Android phone, and both on the web app. Then sign in with the same email
     by password or magic link and check that you land in the same household.
+
+## 5. MCP server on the hosted project (job 3)
+
+Done from the box through the Management API on 2026-10-22: OAuth 2.1 server
+enabled, dynamic client registration enabled, authorization path
+`/oauth/consent`. JWT signing already used an ES256 key (`in_use`).
+
+Still needed:
+
+1. **Deploy the migrations and the `mcp` function** (section 1 above). The
+   deploy workflow and `supabase functions deploy` include `mcp`. Check
+   afterwards:
+   `curl https://jdwqrallbpdbshrdhenk.supabase.co/functions/v1/mcp/.well-known/oauth-protected-resource`
+   returns JSON with `"resource"`.
+2. **Host the web app and set the Site URL** (sections 2 and 3). The OAuth
+   server sends the browser to `<Site URL>/oauth/consent`; today that is
+   `http://localhost:3000`, so OAuth connections from Claude or ChatGPT only
+   work once the web app is public. Personal access tokens work without it.
+   If the web app is served under a sub-path (GitHub Pages:
+   `/family-groceries`), set the authorization path to
+   `/family-groceries/oauth/consent` in Dashboard → Authentication → OAuth
+   Server (or `oauth_server_authorization_path` via the API).
+3. **Optional:** if a browser-based MCP client on another site should connect,
+   set the edge function secret `MCP_ALLOWED_ORIGIN_HOSTS` to its hostname(s),
+   comma-separated (`supabase secrets set MCP_ALLOWED_ORIGIN_HOSTS=…`).

@@ -1,6 +1,6 @@
 import { expect, test } from './fixtures';
 import {
-  addField, addItem, createInviteCode, itemRow, newEmail, screenshot, signUp, signUpWithHousehold, tickBox, typeInto,
+  addField, addItem, apiAs, createInviteCode, itemRow, newEmail, screenshot, signUp, signUpWithHousehold, tickBox, typeInto,
 } from './helpers';
 
 test('two members of one household see each other\'s changes live', async ({ browser }) => {
@@ -105,4 +105,39 @@ test('a tick made while offline syncs when the connection returns', async ({ bro
   await peterContext.setOffline(false);
   await expect(itemRow(lea, 'Brot')).toHaveCount(0, { timeout: 15_000 });
   await expect(itemRow(lea, 'Eier')).toBeVisible({ timeout: 15_000 });
+});
+
+test('a change made before the channel is live still shows up', async ({ page }) => {
+  // Realtime confirms the join before its Postgres listener runs and says
+  // "Subscribed to PostgreSQL" when it does; a change in between is never
+  // delivered. Simulate that window by holding the message back.
+  let ready: string | undefined;
+  let live = false;
+  let release = () => {};
+  await page.routeWebSocket(/\/realtime\/v1\/websocket/, (ws) => {
+    const server = ws.connectToServer();
+    ws.onMessage((message) => server.send(message));
+    server.onMessage((message) => {
+      const frame = String(message);
+      if (!live && frame.includes('Subscribed to PostgreSQL')) ready = frame;
+      else if (!live && frame.includes('"postgres_changes",{"data"')) return;
+      else ws.send(message);
+    });
+    release = () => {
+      live = true;
+      ws.send(ready!);
+    };
+  });
+  const email = newEmail('gap');
+  await signUpWithHousehold(page, email);
+  await expect.poll(() => ready, { message: 'the server says it is live' }).toBeTruthy();
+
+  const api = await apiAs(email);
+  const { data } = await api.from('household_members').select('household_id').single();
+  await api.from('items').insert({ household_id: data!.household_id, name: 'Zwischendurch' });
+  await page.waitForTimeout(1_000);
+  await expect(itemRow(page, 'Zwischendurch'), 'not delivered while the listener starts').toHaveCount(0);
+
+  release();
+  await expect(itemRow(page, 'Zwischendurch'), 'caught up once the channel is live').toBeVisible();
 });

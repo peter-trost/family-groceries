@@ -168,3 +168,76 @@ any of them; each entry says what changing it would touch.
 10. **Cancel is reported.** A canceled provider dialog or `access_denied` on
     the return URL shows "Anmeldung abgebrochen", as the brief asks.
     Supabase's examples treat it as silent.
+
+## Job 3 (MCP server, OAuth 2.1, personal access tokens), 2026-10-22
+
+Numbered 3.x so parallel jobs don't collide. Details and sources: `docs/MCP.md`.
+
+3.1. **Tools run as the user, not the service role.** `_shared/db.ts` opens one
+     Postgres transaction per tool call on `SUPABASE_DB_URL` with role
+     `authenticated` and `request.jwt.claims.sub` set to the caller. RLS,
+     triggers and `classify_item` (members-only since #4) behave as for the
+     app, and a missing household filter cannot leak another household's data.
+     The alternative, the service role with explicit `household_id` filters,
+     would have made every query a possible leak and given `auth.uid()` no
+     value in triggers.
+3.2. **Audience check = issuer + signature + `client_id`.** Supabase ignores
+     RFC 8707 `resource` for `aud` (always `authenticated`; verified on a real
+     token). The MCP endpoint accepts a JWT only with the project's issuer,
+     a JWKS signature (ES256/RS256), `role = authenticated` and a `client_id`
+     claim, so a token issued to the app is not accepted. `authenticate()`
+     still reports app session tokens as `via: 'session'`, because job 4's
+     voice endpoint is called by the app itself.
+3.3. **Both MCP protocol eras.** The latest spec (2026-07-28) is breaking:
+     no `initialize`, no sessions. `@modelcontextprotocol/server` 2.3.1's
+     `createMcpHandler` serves it and 2025-era clients from one tool
+     definition, stateless, `GET`/`DELETE` → 405. A fresh server per request
+     keeps the authenticated caller in a closure, not in shared state.
+3.4. **Protected Resource Metadata under the function path.** An edge function
+     cannot serve `https://<ref>.supabase.co/.well-known/…`, so the metadata
+     lives at `<endpoint>/.well-known/oauth-protected-resource` (and at
+     `<endpoint>/oauth-protected-resource`, Supabase's own helper path). The
+     `WWW-Authenticate` header points at it, which the spec lists first.
+3.5. **Advertised scopes `openid email`.** Supabase rejects custom scopes, and
+     the tools need none; household access comes from membership.
+3.6. **Origin check with an allowlist.** Browser requests must come from the
+     project host, localhost, or `MCP_ALLOWED_ORIGIN_HOSTS`; requests without
+     an `Origin` (all native and server-side clients) pass. CORS stays open,
+     because no cookies are involved.
+3.7. **Personal access tokens.** Format `fgp_` + 32 random bytes, base64url.
+     The table stores a SHA-256 hash (no salt or slow hash needed: the token
+     has 256 bits of entropy) and the last four characters. A token acts as
+     its creator in the household it was created in, and stops working when
+     the creator leaves it. At most 20 active tokens per user. Revocation is
+     one-way (trigger). Revoked tokens are hidden in the app.
+     The cross-household cases for this table live in
+     `supabase/tests/personal_access_tokens.test.sql`, not `rls.test.sql`,
+     to stay out of other jobs' merge conflicts.
+3.8. **Consent survives sign-in.** `authRedirect` carries the consent URL as
+     `next` through `/login` and `/welcome`. Only a same-origin
+     `/oauth/consent` URL is accepted, so `next` cannot become an open
+     redirect.
+3.9. **Settings screen "Zugänge"** (menu entry) holds the MCP URL, the tokens
+     (create, shown once, revoke) and the OAuth grants (`listGrants`,
+     `revokeGrant`), so a connected assistant can be disconnected without
+     the dashboard.
+3.10. **`add_items` through the items insert path for now.** MCP inserts rows
+      without a category, so the items trigger calls `classify_item`. Job 2's
+      `public.add_items` RPC replaces this inside `mcp/list.ts` `addItems()`
+      once it is on main.
+3.11. **Local edge runtime policy `oneshot`.** With `per_worker`,
+      `supabase start` reuses one worker until its 1 s CPU soft limit, then
+      ends it, and requests in flight fail with 503 after about 13 s (seen as
+      "CPU time soft limit reached" in the edge runtime log; it failed one in
+      four full e2e runs). `oneshot` starts a worker per request, which
+      matches the hosted per-request CPU limit. Three full runs were clean
+      afterwards.
+3.12. **Local DB host alias.** Under `supabase start`, `SUPABASE_DB_URL` names
+      the host `supabase_db_<project>`, which Deno's resolvers reject
+      (underscore). `_shared/db.ts` maps it to the container alias `db`.
+      Hosted URLs are unaffected.
+3.13. **Remote OAuth server enabled through the Management API**
+      (`SUPABASE_ACCESS_TOKEN` was available): OAuth server on, dynamic
+      registration on, authorization path `/oauth/consent`. The project
+      already signed with ES256. Deploying the function and migrations is
+      still Peter's step (no DB password on the box), see `NEEDS_PETER.md`.

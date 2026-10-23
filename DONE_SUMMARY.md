@@ -162,3 +162,7 @@ Nice to have, also done:
 
 Results after the fixes (local `scripts/verify.sh`): pgTAP 54/54, Flutter
 46/46, Playwright 11/11, gitleaks clean, `db lint` clean.
+
+## Job 3: MCP server, OAuth 2.1, personal access tokens
+
+See [docs/done/03-mcp-oauth-tokens.md](docs/done/03-mcp-oauth-tokens.md).

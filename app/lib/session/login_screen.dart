@@ -14,6 +14,9 @@ class const LoginScreen({
 
   /// Carried through so a magic link lands back on the invite.
   final String? invite,
+
+  /// A consent URL to return to after sign-in, already vetted by the router.
+  final String? next,
 }) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -21,7 +24,9 @@ class const LoginScreen({
     return Scaffold(
       appBar: AppBar(title: Text(AppLocalizations.of(context).signInTitle)),
       body: Center(
-        child: SignInPanel(returnPath: invite == null ? '/' : '/join/$invite'),
+        child: SignInPanel(
+          returnPath: next ?? (invite == null ? '/' : '/join/$invite'),
+        ),
       ),
     );
   }

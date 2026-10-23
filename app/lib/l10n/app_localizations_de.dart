@@ -221,4 +221,165 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get loading => 'Lädt …';
+
+  @override
+  String get consentTitle => 'Zugriff erlauben?';
+
+  @override
+  String consentSignedInAs(String email) {
+    return 'Angemeldet als $email';
+  }
+
+  @override
+  String consentHousehold(String name) {
+    return 'Haushalt: $name';
+  }
+
+  @override
+  String consentWants(String client) {
+    return '$client möchte:';
+  }
+
+  @override
+  String get consentListAccess =>
+      'Einträge deiner Einkaufsliste lesen, hinzufügen, abhaken und verschieben';
+
+  @override
+  String get scopeOpenid => 'Deine Anmeldung bestätigen';
+
+  @override
+  String get scopeEmail => 'Deine E-Mail-Adresse';
+
+  @override
+  String get scopeProfile => 'Dein Name und Profil';
+
+  @override
+  String get scopePhone => 'Deine Telefonnummer';
+
+  @override
+  String get scopeOfflineAccess => 'Dauerhaft angemeldet bleiben';
+
+  @override
+  String get consentAllow => 'Erlauben';
+
+  @override
+  String get consentDeny => 'Ablehnen';
+
+  @override
+  String get redirecting => 'Weiterleitung …';
+
+  @override
+  String get consentInvalid =>
+      'Diese Anfrage ist ungültig oder abgelaufen. Starte die Verbindung in deiner App neu.';
+
+  @override
+  String get accessTitle => 'Zugänge';
+
+  @override
+  String get mcpServer => 'MCP-Server';
+
+  @override
+  String get mcpServerBody =>
+      'Für Claude, ChatGPT und andere KI-Assistenten. Verbinde per Anmeldung (OAuth) oder mit einem Zugriffstoken.';
+
+  @override
+  String get accessTokens => 'Zugriffstoken';
+
+  @override
+  String get noTokens => 'Kein aktiver Token.';
+
+  @override
+  String tokenHint(String hint) {
+    return '…$hint';
+  }
+
+  @override
+  String createdOn(DateTime date) {
+    final intl.DateFormat dateDateFormat = intl.DateFormat.yMd(localeName);
+    final String dateString = dateDateFormat.format(date);
+
+    return 'Erstellt am $dateString';
+  }
+
+  @override
+  String lastUsedOn(DateTime date) {
+    final intl.DateFormat dateDateFormat = intl.DateFormat.yMd(localeName);
+    final String dateString = dateDateFormat.format(date);
+
+    return 'Zuletzt benutzt $dateString';
+  }
+
+  @override
+  String get neverUsed => 'Noch nie benutzt';
+
+  @override
+  String get createToken => 'Token erstellen';
+
+  @override
+  String get create => 'Erstellen';
+
+  @override
+  String get tokenName => 'Name';
+
+  @override
+  String get tokenNameHint => 'z. B. Claude oder Siri';
+
+  @override
+  String get tokenCreated => 'Token erstellt';
+
+  @override
+  String get tokenShownOnce =>
+      'Kopiere den Token jetzt. Er wird nicht noch einmal angezeigt.';
+
+  @override
+  String get done => 'Fertig';
+
+  @override
+  String revokeToken(String name) {
+    return '$name widerrufen';
+  }
+
+  @override
+  String get revokeTokenTitle => 'Token widerrufen?';
+
+  @override
+  String get revokeTokenBody =>
+      'Apps, die ihn benutzen, verlieren sofort den Zugriff.';
+
+  @override
+  String get revoke => 'Widerrufen';
+
+  @override
+  String get tooManyTokens => 'Höchstens 20 aktive Tokens.';
+
+  @override
+  String get connectedApps => 'Verbundene Apps';
+
+  @override
+  String get noConnectedApps => 'Noch keine App verbunden.';
+
+  @override
+  String connectedOn(DateTime date) {
+    final intl.DateFormat dateDateFormat = intl.DateFormat.yMd(localeName);
+    final String dateString = dateDateFormat.format(date);
+
+    return 'Verbunden am $dateString';
+  }
+
+  @override
+  String get disconnect => 'Trennen';
+
+  @override
+  String disconnectApp(String name) {
+    return '$name trennen';
+  }
+
+  @override
+  String disconnectTitle(String name) {
+    return '$name trennen?';
+  }
+
+  @override
+  String get disconnectBody =>
+      'Die App verliert sofort den Zugriff auf deine Liste.';
 }

@@ -68,7 +68,24 @@ supabase functions deploy --use-api --project-ref "$SUPABASE_PROJECT_REF"
   NEEDS_PETER section 2, OAuth server enabled at `/oauth/consent`. Rerunning
   reports "already up to date".
 
-Screenshots (Vercel preview of this branch):
+- Production after the merge (a56f5c4, 2026-10-23 17:25): Vercel deploy
+  succeeded, "Supabase deploy" on main green in 22 s, and
+  `node e2e/web-smoke.mjs https://family-groceries-pied.vercel.app` all `ok`
+  (same checks as the preview).
+- MCP OAuth on production: a client registered by DCR and sent to
+  `/auth/v1/oauth/authorize` gets `302` to
+  `https://family-groceries-pied.vercel.app/oauth/consent?authorization_id=...`.
+  The test client was deleted afterwards (admin API `204`, then `404`).
+- Not checked: whether Vercel's build cache keeps the 1.55 GB SDK and pub
+  cache (DECISIONS 7.2). Without the cache, a build pays about 30 s more.
+
+Production screenshots:
+
+![sign-in](../screenshots/07/production-1-sign-in.png)
+![Google](../screenshots/07/production-2-google-consent.png)
+![Apple](../screenshots/07/production-3-apple-sign-in.png)
+
+Screenshots (Vercel preview of the PR branch):
 
 ![sign-in](../screenshots/07/preview-1-sign-in.png)
 ![Google](../screenshots/07/preview-2-google-consent.png)

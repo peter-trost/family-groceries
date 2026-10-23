@@ -24,6 +24,9 @@ log "edge functions: deno fmt/lint/test"
 (cd "$REPO_ROOT/supabase/functions" && deno fmt --check && deno lint && deno test --allow-env --allow-net \
   && deno fmt --check ../classifier && deno lint ../classifier && deno test --allow-read ../classifier)
 
+log "deploy tooling: deno fmt/lint/test"
+(cd "$REPO_ROOT/supabase/deploy" && deno fmt --check && deno lint && deno test --allow-read)
+
 log "fg verification CLI: deno fmt/lint/test"
 (cd "$REPO_ROOT/.cursor/skills/verify-family-groceries/cli" && deno fmt --check && deno lint && deno test --allow-all)
 

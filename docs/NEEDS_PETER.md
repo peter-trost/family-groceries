@@ -3,7 +3,51 @@
 Steps that cannot be done from the build box. Everything around them is
 implemented.
 
+## Status after job 7 (2026-10-23)
+
+Done from the box (details in the sections below):
+
+- Remote project `jdwqrallbpdbshrdhenk`: all migrations applied, edge
+  functions `health`, `mcp` and `voice` deployed, Google and Apple sign-in
+  enabled. The "Supabase deploy" workflow redeploys from every push to
+  `main` over the Management API and fails red when a credential is
+  missing (section 1).
+- Web app on Vercel, built from every push (section "Job 7: web hosting on
+  Vercel"). Site URL, redirect URLs and the OAuth consent path point at
+  it (section 2).
+- `app/config/auth.json` and `app/ios/Flutter/Auth.xcconfig` carry the real
+  client IDs (section 4, step 15).
+
+Still yours:
+
+- Section 4, step 7: an Android OAuth client for the release keystore's
+  SHA-1 (today only the build box's debug key has one, so Google sign-in
+  works in debug APKs only).
+- Section 4, step 13: renew the Apple client secret before it expires
+  (set up on 2026-10-23 per the board, valid 180 days, so renew by
+  2027-04-21 at the latest).
+- Section 4, steps 16 and 18: the Xcode capability check and trying
+  sign-in on your phones.
+- Optional: delete the repo secret `SUPABASE_DB_PASSWORD`; nothing reads it
+  any more.
+- Job 4: release and Siri sections, job 5: Android verification run.
+
 ## 1. Remote Supabase deploy (job 1)
+
+Done (job 7). The repo has the secret `SUPABASE_ACCESS_TOKEN` and the
+variable `SUPABASE_PROJECT_REF`. The workflow applies migrations through
+the Management API (`supabase/deploy/migrate.ts`), deploys the functions
+with `supabase functions deploy --use-api` and smoke-tests them; it needs
+no database password and no direct Postgres connection. From any machine:
+
+```bash
+set -a; source ~/groceries-ops/env; set +a
+export SUPABASE_PROJECT_REF=jdwqrallbpdbshrdhenk
+deno run --allow-read --allow-env --allow-net --config supabase/deploy/deno.json supabase/deploy/migrate.ts
+supabase functions deploy --use-api --project-ref "$SUPABASE_PROJECT_REF"
+```
+
+The original steps below are kept for reference.
 
 No `SUPABASE_ACCESS_TOKEN` was available, so migrations are not yet on
 `jdwqrallbpdbshrdhenk`. Pick one:
@@ -30,6 +74,21 @@ supabase functions deploy
 
 ## 2. Auth URLs on the hosted project
 
+Done (job 7, 2026-10-23, Management API via `supabase/deploy/auth_urls.ts`):
+
+- Site URL: `https://family-groceries-pied.vercel.app`
+- Redirect URLs: `https://family-groceries-pied.vercel.app/**`,
+  `https://family-groceries-*-peter-trost.vercel.app/**` (Vercel previews
+  of this team), `com.petertrost.familygroceries://login-callback`. No
+  localhost entries on production (DECISIONS 7.9).
+- OAuth server: enabled, authorization path `/oauth/consent`, so MCP
+  clients land on `https://family-groceries-pied.vercel.app/oauth/consent`.
+
+To change the URL later, rerun
+`deno run --allow-env --allow-net supabase/deploy/auth_urls.ts <new-url> --preview <pattern>`
+with `SUPABASE_ACCESS_TOKEN` and `SUPABASE_PROJECT_REF` set, and update
+`appUrl` in `app/lib/app/environment.dart`. The original steps:
+
 Dashboard, Authentication, URL Configuration:
 
 - Site URL: the public web app URL once it is hosted (for example
@@ -42,6 +101,9 @@ confirmation is on by default for hosted projects: new users confirm their
 address before the first sign-in, and the app tells them so.
 
 ## 3. Web hosting (optional, free)
+
+Superseded (job 7): the web app is on Vercel; see "Job 7: web hosting on
+Vercel".
 
 The web app has no public URL yet. GitHub Pages on this public repo is free;
 say the word and a later job adds the Pages workflow (needs the SPA
@@ -199,6 +261,9 @@ Still needed:
    comma-separated (`supabase secrets set MCP_ALLOWED_ORIGIN_HOSTS=…`).
 
 ## Job 4: web hosting
+
+Superseded (job 7): GitHub Pages and `web-deploy.yml` were replaced by
+Vercel and removed.
 
 `.github/workflows/web-deploy.yml` builds the web app against the production
 project and publishes it to GitHub Pages (free for public repos), at
@@ -386,3 +451,26 @@ run them from a clone of the repo.
    in `vmx_vcpu_create` (dmesg, 2026-10-23 05:53–06:03). Once the host is
    fixed, delete `~/.config/fg/kvm-broken` on the box to re-enable the
    emulator.
+
+## Job 7: web hosting on Vercel
+
+Done. The Vercel project `peter-trost/family-groceries` (created by
+Engineering Lead on 2026-10-23) is linked to this repo and builds every
+push from `vercel.json`:
+
+- Production: `https://family-groceries-pied.vercel.app` (branch `main`).
+  The plain `family-groceries.vercel.app` belongs to someone else.
+- Previews: `https://family-groceries-git-<branch>-peter-trost.vercel.app`,
+  behind Vercel Authentication (team default, unchanged).
+- Project settings: root directory empty (repo root), framework "Other",
+  no install, build or output overrides, Node 22.x. Environment variables
+  for Production and Preview, both public values:
+  `SUPABASE_URL=https://jdwqrallbpdbshrdhenk.supabase.co` and
+  `SUPABASE_PUBLISHABLE_KEY=sb_publishable_YMFUFoZ-smly3zDIYTIFRw_vRt6UBk5`.
+  The build fails if either is missing or the key is not a publishable key.
+- Check a deployment with `node e2e/web-smoke.mjs <url> <screenshot-dir>`
+  (after `cd e2e && npm ci`): SPA routes, cache headers, and the Google and
+  Apple buttons reaching the providers' sign-in pages.
+
+Nothing is needed from you here. Optional: a custom domain (Vercel,
+Domains). If you add one, rerun `auth_urls.ts` with it and change `appUrl`.

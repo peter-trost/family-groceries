@@ -16,6 +16,10 @@ abstract interface class ListRepository() {
   /// Active items plus the most recently bought ones.
   Future<List<Item>> fetchItems();
 
+  /// What the household buys again and again, best first, without what is
+  /// on the list now.
+  Future<List<Usual>> fetchUsuals();
+
   /// Applies [op] on the server and returns the resulting row, or null when
   /// the item no longer exists.
   Future<Item?> send(ItemOp op);
@@ -77,11 +81,11 @@ class SupabaseListRepository(
 ) implements ListRepository {
   static const _itemColumns =
       'id, name, quantity, category_id, store_id, status, created_at, '
-      'updated_at, bought_at';
+      'updated_at, bought_at, added_by';
 
   @override
   Future<Catalog> fetchCatalog() async {
-    final (categories, stores, layout) = await (
+    final (categories, stores, layout, memberIds, profiles) = await (
       _client
           .from('categories')
           .select('id, name, sort_order, seed_key')
@@ -96,11 +100,23 @@ class SupabaseListRepository(
           .from('store_category_order')
           .select('store_id, category_id, sort_order, hidden')
           .eq('household_id', householdId),
+      _client
+          .from('household_members')
+          .select('user_id')
+          .eq('household_id', householdId),
+      // No foreign key to join on; RLS returns everyone the user shares a
+      // household with, and the member ids pick this one's.
+      _client.from('profiles').select('id, display_name'),
     ).wait;
+    final ids = {for (final row in memberIds) row['user_id']! as String};
     return Catalog(
       categories: categories.map(Category.fromJson).toList(),
       stores: stores.map(Store.fromJson).toList(),
       layout: layout.map(StoreCategory.fromJson).toList(),
+      members: [
+        for (final member in profiles.map(Member.fromJson))
+          if (ids.contains(member.id)) member,
+      ],
     );
   }
 
@@ -166,6 +182,17 @@ class SupabaseListRepository(
           .limit(50),
     ]);
     return [for (final rows in results) ...rows.map(Item.fromJson)];
+  }
+
+  @override
+  Future<List<Usual>> fetchUsuals() async {
+    final rows = await _client.rpc<List<dynamic>>(
+      'suggest_items',
+      params: {'p_household': householdId, 'p_prefix': '', 'p_limit': 200},
+    );
+    return [
+      for (final row in rows) Usual.fromJson(row as Map<String, Object?>),
+    ];
   }
 
   @override

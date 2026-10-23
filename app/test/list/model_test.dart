@@ -367,6 +367,6 @@ void main() {
       createdAt: DateTime.utc(2026),
       updatedAt: DateTime.utc(2026),
     );
-    expect(names(dueUsuals(usuals, [brot])), ['Milch', 'Käse']);
+    expect(names(dueUsualsOf(usuals, [brot])), ['Milch', 'Käse']);
   });
 }

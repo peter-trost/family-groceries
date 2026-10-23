@@ -42,6 +42,7 @@ class const ListScreen({
         repository ??
             SupabaseListRepository(Supabase.instance.client, household.id),
         context.read<DeviceCache>().list(session.userId, household.id),
+        userId: session.userId,
       )..start(),
       child: ShoppingList(household: household, dictation: _dictation),
     );

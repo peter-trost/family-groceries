@@ -4,7 +4,7 @@ import 'package:family_groceries/list/entry.dart';
 import 'package:family_groceries/list/list_cache.dart';
 import 'package:family_groceries/list/list_repository.dart';
 import 'package:family_groceries/list/model.dart';
-import 'package:flutter/foundation.dart' show immutable;
+import 'package:flutter/foundation.dart' show immutable, setEquals;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
 
@@ -26,6 +26,13 @@ class const ListState({
   /// Whether the store view also shows untagged items in categories the
   /// store does not carry.
   final bool showHidden = false,
+
+  /// What the household buys again and again, best first.
+  final List<Usual> usuals = const [],
+
+  /// Null until loaded from the device or, on a first start, set by the
+  /// first resync.
+  final SeenMark? seen,
 }) {
   Map<String, Item> get items => visibleItems(server, pending);
 
@@ -43,6 +50,8 @@ class const ListState({
     ConnectionStatus? connection,
     StoreFilter? filter,
     bool? showHidden,
+    List<Usual>? usuals,
+    SeenMark? seen,
   }) {
     final next = ListState(
       catalog: catalog ?? this.catalog,
@@ -52,6 +61,8 @@ class const ListState({
       connection: connection ?? this.connection,
       filter: filter ?? this.filter,
       showHidden: showHidden ?? this.showHidden,
+      usuals: usuals ?? this.usuals,
+      seen: seen ?? this.seen,
     );
     // A store that disappeared from the catalog falls back to "Alle".
     return switch (next.filter) {
@@ -84,6 +95,9 @@ final class const CatalogRejected() extends Rejected;
 class ListCubit(
   final ListRepository _repo,
   final ListCache _cache, {
+
+  /// The signed-in user: their own adds are never news to them.
+  required final String userId,
   DateTime Function()? clock,
 }) extends Cubit<ListState> {
   this : super(const ListState());
@@ -94,7 +108,11 @@ class ListCubit(
   Timer? _retry;
   Timer? _catalogReload;
   Timer? _save;
+  Timer? _usualsReload;
   var _flushing = false;
+
+  /// A resync sets the first seen mark only once the stored one was read.
+  var _seenLoaded = false;
 
   /// Rows acknowledged while a resync is in flight; they beat its snapshot.
   Map<String, Item?>? _ackedDuringResync;
@@ -106,34 +124,39 @@ class ListCubit(
   void start() => unawaited(_start());
 
   Future<void> _start() async {
-    if (await _cache.load() case final cached?) {
+    final (cached, seen) = await (_cache.load(), _cache.loadSeen()).wait;
+    if (cached != null) {
       emit(
         state.copyWith(
           catalog: cached.catalog,
           server: {for (final item in cached.server) item.id: item},
           pending: [...cached.pending, ...state.pending],
           loaded: true,
+          usuals: cached.usuals,
         ),
       );
     }
+    if (seen != null) {
+      emit(state.copyWith(seen: seen));
+    }
+    _seenLoaded = true;
     if (isClosed) {
       return;
     }
     _unwatch = _repo.watch(
-      onItem: (row) => _setServer(mergeServerRow(state.server, row)),
+      onItem: (row) {
+        _setServer(mergeServerRow(state.server, row));
+        // A new member: reload so their initial shows.
+        if (row.addedBy != null && state.catalog.member(row.addedBy) == null) {
+          _scheduleCatalogReload();
+        }
+      },
       onItemDeleted: (id) {
         if (state.server.containsKey(id)) {
           _setServer({...state.server}..remove(id));
         }
       },
-      // A reorder fires one event per row; reload once they settle.
-      onCatalogChanged: () {
-        _catalogReload?.cancel();
-        _catalogReload = Timer(
-          const Duration(milliseconds: 200),
-          () => unawaited(_reloadCatalog()),
-        );
-      },
+      onCatalogChanged: _scheduleCatalogReload,
       onStatus: (status) {
         emit(state.copyWith(connection: status));
         if (status == ConnectionStatus.online) {
@@ -144,6 +167,41 @@ class ListCubit(
     );
     unawaited(resync());
   }
+
+  /// A reorder fires one event per row; reload once they settle.
+  void _scheduleCatalogReload() {
+    _catalogReload?.cancel();
+    _catalogReload = Timer(
+      const Duration(milliseconds: 200),
+      () => unawaited(_reloadCatalog()),
+    );
+  }
+
+  /// Ids of partner items the user has not looked at yet.
+  Set<String> get fresh =>
+      state.seen?.fresh(state.items.values, userId) ?? const {};
+
+  /// Marks [ids] as looked at; ids that are not fresh are ignored.
+  void markSeen(Set<String> ids) {
+    if (state.seen case final seen?) {
+      _setSeen(seen.marking(ids, state.items.values, userId));
+    }
+  }
+
+  void _setSeen(SeenMark seen) {
+    emit(state.copyWith(seen: seen));
+    unawaited(_cache.saveSeen(seen));
+  }
+
+  /// Usuals for what is typed: at most 5, none already on the list.
+  List<Usual> suggestionsFor(String text) =>
+      suggestUsuals(state.usuals, state.items.values, text);
+
+  /// Usuals that are due and not on the list, at most 10.
+  List<Usual> get dueUsuals => dueUsualsOf(state.usuals, state.items.values);
+
+  AddResult addUsual(Usual usual) =>
+      addEntry(Entry(usual.name, usual.quantity));
 
   AddResult add(String input) => addEntry(parseEntry(input));
 
@@ -293,12 +351,29 @@ class ListCubit(
         }
       }
       emit(state.copyWith(catalog: catalog, server: snapshot, loaded: true));
+      if (state.seen == null && _seenLoaded) {
+        // A first start: what is on the list already is not news.
+        final created = [for (final row in snapshot.values) row.createdAt]
+          ..sort();
+        _setSeen(SeenMark(until: created.lastOrNull));
+      }
+      _usualsReload?.cancel();
+      unawaited(_refreshUsuals());
     } on Object {
       _goOffline();
     } finally {
       _ackedDuringResync = null;
     }
     unawaited(_flush());
+  }
+
+  /// A failure keeps the usuals there are; it says nothing about the list.
+  Future<void> _refreshUsuals() async {
+    try {
+      emit(state.copyWith(usuals: await _repo.fetchUsuals()));
+    } on Object {
+      return;
+    }
   }
 
   Future<void> _reloadCatalog() async {
@@ -384,6 +459,14 @@ class ListCubit(
     super.onChange(change);
     final next = change.nextState;
     final before = change.currentState;
+    if (!identical(next.server, before.server) &&
+        !setEquals(_activeNames(next.server), _activeNames(before.server))) {
+      _usualsReload?.cancel();
+      _usualsReload = Timer(
+        const Duration(milliseconds: 1500),
+        () => unawaited(_refreshUsuals()),
+      );
+    }
     if (!next.loaded) {
       return;
     }
@@ -391,7 +474,8 @@ class ListCubit(
       _save?.cancel();
       _saveNow(next);
     } else if (!identical(next.catalog, before.catalog) ||
-        !identical(next.server, before.server)) {
+        !identical(next.server, before.server) ||
+        !identical(next.usuals, before.usuals)) {
       _save?.cancel();
       _save = Timer(const Duration(milliseconds: 300), () => _saveNow(state));
     }
@@ -403,9 +487,15 @@ class ListCubit(
         catalog: state.catalog,
         server: [...state.server.values],
         pending: state.pending,
+        usuals: state.usuals,
       ),
     ),
   );
+
+  static Set<String> _activeNames(Map<String, Item> server) => {
+    for (final item in server.values)
+      if (item.status == ItemStatus.active) item.name.toLowerCase(),
+  };
 
   // Fetches and acks can land after the screen is gone.
   @override
@@ -420,6 +510,7 @@ class ListCubit(
     _retry?.cancel();
     _catalogReload?.cancel();
     _save?.cancel();
+    _usualsReload?.cancel();
     await _unwatch?.call();
     await _rejections.close();
     await super.close();

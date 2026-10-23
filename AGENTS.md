@@ -27,6 +27,11 @@ reasons are in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 ## Conventions
 
+- Prove behavior with the verify-family-groceries skill
+  (`.cursor/skills/verify-family-groceries/`, also `.claude/skills/`): it
+  drives the real app through `scripts/fg` (start with `scripts/fg help`)
+  and keeps one recipe per feature in `features/`. A PR that changes a
+  feature updates its `features/<feature>.md`.
 - Run `scripts/verify.sh` before pushing. It runs what CI runs: gitleaks,
   pgTAP and `db lint`, Deno fmt/lint/test, Flutter l10n/format/analyze/test,
   the web build and Playwright.

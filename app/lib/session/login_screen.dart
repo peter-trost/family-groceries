@@ -180,6 +180,7 @@ class _SignInPanelState() extends State<SignInPanel> {
               const SizedBox(height: 12),
             ],
             TextFormField(
+              key: const ValueKey('login-email'),
               controller: _email,
               autofocus: true,
               keyboardType: TextInputType.emailAddress,
@@ -190,6 +191,7 @@ class _SignInPanelState() extends State<SignInPanel> {
             ),
             const SizedBox(height: 12),
             TextFormField(
+              key: const ValueKey('login-password'),
               controller: _password,
               obscureText: true,
               autofillHints: const [AutofillHints.password],

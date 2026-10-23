@@ -8,3 +8,4 @@ analyzer:
     - android/**
     - ios/**
     - web/**
+    - linux/**

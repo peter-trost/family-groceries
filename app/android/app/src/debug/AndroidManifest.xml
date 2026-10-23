@@ -4,4 +4,8 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Debug builds talk to the local Supabase stack over plain HTTP
+         (http://10.0.2.2:<port> from the emulator). Release builds keep
+         Android's cleartext block. -->
+    <application android:usesCleartextTraffic="true"/>
 </manifest>

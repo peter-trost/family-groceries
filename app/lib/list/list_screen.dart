@@ -278,6 +278,7 @@ class _ShoppingListState() extends State<ShoppingList> {
                 return KeyEventResult.handled;
               },
               child: TextField(
+                key: const ValueKey('add-item-field'),
                 controller: _input,
                 focusNode: _inputFocus,
                 autofocus: true,

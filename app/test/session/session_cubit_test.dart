@@ -54,6 +54,19 @@ void main() {
     );
   });
 
+  test('a cached household opens before the server is asked', () async {
+    final whileAsking = <Session>[];
+    await cubit.close();
+    cubit = SessionCubit(
+      FakeClient(auth, onQuery: () => whileAsking.add(cubit.state)),
+      cache,
+    );
+    cache.households['peter'] = household;
+    signIn();
+    await pumpEventQueue();
+    expect(whileAsking.first, isA<InHousehold>());
+  });
+
   test('offline without a cached household keeps loading', () async {
     signIn();
     await pumpEventQueue();

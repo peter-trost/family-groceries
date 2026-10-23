@@ -49,16 +49,18 @@ class FakeAuth() extends Fake implements GoTrueClient {
   }
 }
 
-/// A client whose database is unreachable.
-class FakeClient(final FakeAuth fakeAuth)
+/// A client whose database is unreachable; [onQuery] sees each attempt.
+class FakeClient(final FakeAuth fakeAuth, {final void Function()? onQuery})
     extends Fake
     implements SupabaseClient {
   @override
   GoTrueClient get auth => fakeAuth;
 
   @override
-  SupabaseQueryBuilder from(String table) =>
-      throw const SocketException('offline');
+  SupabaseQueryBuilder from(String table) {
+    onQuery?.call();
+    throw const SocketException('offline');
+  }
 }
 
 /// The device cache, in memory; [households] is its contents.

@@ -598,3 +598,12 @@ Numbered 3.x so parallel jobs don't collide. Details and sources: `docs/MCP.md`.
       capture-phase listener because the loader's callback mode ignores the
       script tag's error. On this box Docker bridges from other jobs' stacks
       trigger it; for users a Wi-Fi or VPN switch during load does.
+2b.9. **The list resyncs when Realtime says it is live.** Realtime confirms
+      the channel join before its Postgres listener runs and announces it
+      later with a `system` event ("Subscribed to PostgreSQL", 2.5 s after
+      the join on this stack). A change in between was never delivered, so
+      an item added by voice or MCP right after the list opened stayed
+      missing (seen in a full e2e run, and around the local stack's periodic
+      "tenant terminated: rebalancing"). `watch()` now reports that event as
+      online, which resyncs. `realtime_client` already turns a `system`
+      error into `channelError`, which shows Offline.

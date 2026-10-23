@@ -38,3 +38,4 @@ Preconditions:
 - A delete hides the row on the acting client at once (optimistic). The server delete lands about 1 to 3 s later, and only then does the other client drop the row. Use `--timeout 10` for deletes.
 - A precondition written with `fg db query --write` also syncs live, because it is a real update. Write preconditions before you start recording.
 - Both apps must be signed in to the same household. A client left on another account from an earlier recipe shows a different list. Check the app bar title ("Familie Test").
+- Realtime joins a channel before its Postgres listener is live (the `system` message "Subscribed to PostgreSQL" follows ~2.5 s later). The list resyncs on that message too (job 2b), so a change made right after opening still appears. The web e2e test "a change made before the channel is live still shows up" holds that message back to prove it.

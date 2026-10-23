@@ -175,3 +175,7 @@ See [docs/done/03-mcp-oauth-tokens.md](docs/done/03-mcp-oauth-tokens.md).
 ## Job 7: Vercel hosting, auth config, API-only deploy
 
 See [docs/done/07-pages-auth-config.md](docs/done/07-pages-auth-config.md).
+
+## Job 2b: follow-ups to jobs 2 and 5
+
+See [docs/done/02b.md](docs/done/02b.md).

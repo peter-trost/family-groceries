@@ -478,7 +478,8 @@ export const lifecycleCommands: Command[] = [
         () => sh.run(['find', inst.stateDir, '-maxdepth', '1', '-name', 'record-*.log', '-delete']),
       );
       await ctx.save();
-      return { evidenceDir: evidence, evidenceKept: await sh.exists(evidence) };
+      // A run that captured nothing has no directory; naming it would point at nothing.
+      return (await sh.exists(evidence)) ? { evidenceDir: evidence, evidenceKept: true } : { evidenceDir: null, evidenceKept: false };
     },
   },
   {
@@ -500,7 +501,7 @@ export const lifecycleCommands: Command[] = [
           { checks: checks as unknown as JsonObject[] },
         );
       }
-      return { healthy: true, checks: checks as unknown as JsonObject[] };
+      return { checks: checks as unknown as JsonObject[] };
     },
   },
   {

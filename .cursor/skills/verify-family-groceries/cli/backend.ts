@@ -29,6 +29,14 @@ export const backendCommands: Command[] = [
         const out = await ctx.act(`run as ${as ?? 'postgres'}: ${text}`, () => sql(ctx.sh, ctx.inst, text, { write: true, asUser }));
         return { as: as ?? 'postgres', write: true, output: out?.trim() ?? null };
       }
+      // Rows come back only for a query; anything else must say --write.
+      if (!/^\s*(select|with|values|table)\b/i.test(text)) {
+        throw new FgError(
+          'read_only',
+          `"${text.trim().split(/\s+/)[0]}" is not a read-only query; without --write fg db query runs one SELECT or WITH.`,
+          'To change data, rerun with --write (and --dry-run first to see it).',
+        );
+      }
       if (ctx.dryRun) {
         ctx.actions.push(`read as ${as ?? 'postgres'}: ${text}`);
         return { as: as ?? 'postgres' };

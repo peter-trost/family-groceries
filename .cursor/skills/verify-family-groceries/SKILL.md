@@ -44,7 +44,7 @@ Clients start signed out (`fg up` clears their session storage). `fg restart` qu
 scripts/fg doctor
 ```
 
-Read-only. Checks Docker, then auth, rest, realtime, functions and Mailpit. It checks that every function in the checkout is served, and that the stack was started with the current `config.toml` (a running stack does not reload either; `fg up` restarts it). It compares the migrations applied with the checkout and checks that both users sign in to one household. Per client it checks that the process is alive, that the build matches the checkout (`<client>.build`), and that Marionette is connected, and it reports which screen shows (`login`, `welcome`, `list`). Exit 1 lists each failed check with its fix. Run it first, and whenever a command fails unexpectedly.
+Read-only. Checks Docker, then auth, rest, realtime, functions and Mailpit. It checks that every function in the checkout is served, and that the stack was started with the current `config.toml` (a running stack does not reload either; `fg up` restarts it). It compares the migrations applied with the checkout and checks that both users sign in to one household. Per client it checks that the process is alive, that the build matches the checkout (`<client>.build`), and that Marionette is connected, and it reports which screen shows (`login`, `welcome`, `list`). Healthy means `"ok": true` and exit 0, the same contract as every other command. Otherwise it exits 1 with `"ok": false`, `error.code` `unhealthy` and `error.checks`, where each failed check carries its `fix`. Run it first, and whenever a command fails unexpectedly.
 
 ## Drive
 
@@ -74,6 +74,8 @@ scripts/fg marionette -- scroll-to --text "Zuletzt gekauft"   # any other Marion
 ## Evidence
 
 Evidence goes to `$FG_EVIDENCE_DIR/<run>/` (default `~/fg-evidence/<run>`; on the build box use `FG_EVIDENCE_DIR=~/groceries-ops/evidence`). That is outside the repo, and `fg down` never removes it. The run directory starts with `fg up` (or `--run NAME`). `fg env` prints it.
+
+For review, copy the proof into the PR: commit the screenshots and short recordings (WebM, well under 1 MB each) to `docs/screenshots/<job>/`, embed the PNGs in the PR body, and link the videos. The full run directory stays in `$FG_EVIDENCE_DIR` for anyone re-checking on the box.
 
 ```bash
 scripts/fg screenshot --name 02-lea-sees-milch --client lea    # PNG of the app frame

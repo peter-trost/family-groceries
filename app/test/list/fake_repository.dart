@@ -6,6 +6,7 @@ import 'package:family_groceries/list/model.dart';
 
 /// An in-memory server. [online] false makes every call fail like a dropped
 /// connection; [reject] makes the next write fail like a refused one.
+/// Writes come from [me]; [remoteAdd] is Lea's by default.
 ///
 /// Stores: Lidl walks the route backwards; dm does not carry produce or
 /// chilled.
@@ -37,6 +38,16 @@ class FakeRepository() implements ListRepository {
     StoreCategory(storeId: 'lidl', categoryId: 'chilled', sortOrder: 20),
     StoreCategory(storeId: 'lidl', categoryId: 'produce', sortOrder: 30),
   ];
+  var members = const [
+    Member(id: 'peter', displayName: 'Peter'),
+    Member(id: 'lea', displayName: 'Lea'),
+  ];
+  var me = 'peter';
+
+  /// What suggest_items answers; [usualsFail] makes it fail on its own.
+  var usuals = <Usual>[];
+  var usualsFail = false;
+  var usualsCalls = 0;
   final rows = <String, Item>{};
   final sent = <ItemOp>[];
 
@@ -73,7 +84,12 @@ class FakeRepository() implements ListRepository {
   Future<Catalog> fetchCatalog() async {
     _ensureOnline();
     await catalogGate?.future;
-    return Catalog(categories: categories, stores: stores, layout: layout);
+    return Catalog(
+      categories: categories,
+      stores: stores,
+      layout: layout,
+      members: members,
+    );
   }
 
   void _writeCatalog(String call) {
@@ -145,6 +161,16 @@ class FakeRepository() implements ListRepository {
   }
 
   @override
+  Future<List<Usual>> fetchUsuals() async {
+    usualsCalls++;
+    _ensureOnline();
+    if (usualsFail) {
+      throw Exception('suggest_items failed');
+    }
+    return usuals;
+  }
+
+  @override
   Future<Item?> send(ItemOp op) async {
     await gate?.future;
     _ensureOnline();
@@ -166,6 +192,7 @@ class FakeRepository() implements ListRepository {
               status: item.status,
               createdAt: _tick(),
               updatedAt: _clock,
+              addedBy: me,
             ),
       _ => op.apply(current),
     };
@@ -183,6 +210,7 @@ class FakeRepository() implements ListRepository {
       createdAt: next.createdAt,
       updatedAt: _tick(),
       boughtAt: next.boughtAt,
+      addedBy: next.addedBy,
     );
     rows[op.itemId] = stamped;
     return stamped;
@@ -214,7 +242,12 @@ class FakeRepository() implements ListRepository {
   }
 
   /// A change made by another household member.
-  Item remoteAdd(String name, {String? categoryId, String? storeId}) {
+  Item remoteAdd(
+    String name, {
+    String? categoryId,
+    String? storeId,
+    String? addedBy = 'lea',
+  }) {
     final item = Item(
       id: 'remote-${rows.length}',
       name: name,
@@ -223,6 +256,7 @@ class FakeRepository() implements ListRepository {
       status: ItemStatus.active,
       createdAt: _tick(),
       updatedAt: _clock,
+      addedBy: addedBy,
     );
     rows[item.id] = item;
     return item;

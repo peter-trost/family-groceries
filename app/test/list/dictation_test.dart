@@ -43,7 +43,8 @@ void main() {
         supportedLocales: AppLocalizations.supportedLocales,
         locale: const Locale('de'),
         home: BlocProvider(
-          create: (_) => ListCubit(repo, MemoryListCache())..start(),
+          create: (_) =>
+              ListCubit(repo, MemoryListCache(), userId: 'peter')..start(),
           child: ShoppingList(
             household: const Household(id: 'h', name: 'Trost'),
             dictation: dictation,

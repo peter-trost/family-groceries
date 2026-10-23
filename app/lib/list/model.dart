@@ -587,7 +587,7 @@ List<Usual> suggestUsuals(
 }
 
 /// The due [usuals] not on the list, in the server's order.
-List<Usual> dueUsuals(
+List<Usual> dueUsualsOf(
   List<Usual> usuals,
   Iterable<Item> visible, {
   int limit = 10,

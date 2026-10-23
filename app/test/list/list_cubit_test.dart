@@ -22,7 +22,7 @@ void main() {
   setUp(() async {
     repo = FakeRepository();
     cache = MemoryListCache();
-    cubit = ListCubit(repo, cache)..start();
+    cubit = ListCubit(repo, cache, userId: 'peter')..start();
     await settle();
   });
 
@@ -157,6 +157,7 @@ void main() {
     final retrying = ListCubit(
       repo,
       cache,
+      userId: 'peter',
       resubscribeAfter: const Duration(milliseconds: 10),
     )..start();
     await settle();
@@ -324,7 +325,7 @@ void main() {
 
     Future<void> restart() async {
       await cubit.close();
-      cubit = ListCubit(repo, cache)..start();
+      cubit = ListCubit(repo, cache, userId: 'peter')..start();
       await settle();
     }
 
@@ -371,6 +372,175 @@ void main() {
 
       await saved();
       expect(cache.saved!.pending, isEmpty, reason: 'the flush is saved too');
+    });
+  });
+
+  Future<void> startAgain() async {
+    await cubit.close();
+    cubit = ListCubit(repo, cache, userId: 'peter')..start();
+    await settle();
+  }
+
+  group('who added what', () {
+    test('rows carry who added them', () async {
+      final theirs = repo.remoteAdd('Tee').id;
+      final mine = (cubit.add('Brot') as Added).item.id;
+      expect(cubit.state.items[mine]!.addedBy, isNull, reason: 'unconfirmed');
+      await cubit.resync();
+      expect(cubit.state.items[theirs]!.addedBy, 'lea');
+      expect(cubit.state.items[mine]!.addedBy, 'peter');
+      expect(cubit.state.catalog.member('lea')?.displayName, 'Lea');
+    });
+
+    test('a first start highlights nothing that was already there', () async {
+      repo
+        ..remoteAdd('Tee')
+        ..remoteAdd('Äpfel');
+      cache = MemoryListCache();
+      await startAgain();
+      expect(cubit.fresh, isEmpty);
+      expect(cache.seen, isNotNull, reason: 'the baseline is stored');
+    });
+
+    test('a later partner add is fresh, an own add never', () async {
+      final tea = repo.remoteAdd('Tee').id;
+      cubit.add('Brot');
+      await cubit.resync();
+      expect(cubit.fresh, {tea});
+    });
+
+    test('a live partner insert becomes fresh', () {
+      final tea = repo.remoteAdd('Tee');
+      repo.emitItem!(tea);
+      expect(cubit.fresh, {tea.id});
+    });
+
+    test('marking seen clears and survives a restart', () async {
+      final tea = repo.remoteAdd('Tee').id;
+      final apples = repo.remoteAdd('Äpfel').id;
+      await cubit.resync();
+      cubit.markSeen({tea});
+      expect(cubit.fresh, {apples});
+      cubit.markSeen({apples, 'not-fresh'});
+      expect(cubit.fresh, isEmpty);
+      await settle();
+
+      await startAgain();
+      expect(cubit.fresh, isEmpty);
+      final later = repo.remoteAdd('Käse').id;
+      await cubit.resync();
+      expect(cubit.fresh, {later});
+    });
+
+    test('a cached list alone sets no baseline', () async {
+      repo.remoteAdd('Tee');
+      await cubit.resync();
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      cache.seen = null;
+      repo.online = false;
+      await startAgain();
+      expect(cubit.state.loaded, isTrue);
+      expect(cubit.state.seen, isNull);
+      expect(cubit.fresh, isEmpty);
+
+      repo.online = true;
+      await cubit.resync();
+      expect(cubit.fresh, isEmpty, reason: 'the first resync is the baseline');
+    });
+
+    test('an add by an unknown member reloads the catalog', () async {
+      repo.members = [
+        ...repo.members,
+        const Member(id: 'ana', displayName: 'Ana'),
+      ];
+      repo.emitItem!(repo.remoteAdd('Tee', addedBy: 'ana'));
+      expect(cubit.state.catalog.member('ana'), isNull);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(cubit.state.catalog.member('ana')?.displayName, 'Ana');
+    });
+  });
+
+  group('usuals', () {
+    List<String> names(List<Usual> usuals) => [for (final u in usuals) u.name];
+
+    setUp(() async {
+      repo.usuals = [
+        const Usual(name: 'Milch', quantity: '2', due: true),
+        const Usual(name: 'Mehl', due: false),
+        const Usual(name: 'Hafer-Milch', due: true),
+        const Usual(name: 'Möhren', quantity: '1 kg', due: true),
+        const Usual(name: 'Mais', due: false),
+        const Usual(name: 'Mango', due: false),
+        const Usual(name: 'Müsli', due: false),
+        const Usual(name: 'Käse', due: false),
+      ];
+      await cubit.resync();
+      await settle();
+    });
+
+    test('suggestions fold, rank whole names first and leave out the list', () {
+      expect(names(cubit.suggestionsFor('mi')), ['Milch', 'Hafer-Milch']);
+      expect(names(cubit.suggestionsFor(' MILCH')), ['Milch', 'Hafer-Milch']);
+      expect(names(cubit.suggestionsFor('moe')), ['Möhren']);
+      expect(names(cubit.suggestionsFor('kä')), ['Käse']);
+      expect(names(cubit.suggestionsFor('m')), [
+        'Milch',
+        'Mehl',
+        'Möhren',
+        'Mais',
+        'Mango',
+      ]);
+      expect(cubit.suggestionsFor(''), isEmpty);
+
+      cubit.add('milch');
+      expect(names(cubit.suggestionsFor('milch')), ['Hafer-Milch']);
+    });
+
+    test('due usuals leave out what is on the list', () {
+      expect(names(cubit.dueUsuals), ['Milch', 'Hafer-Milch', 'Möhren']);
+      cubit.add('Möhren');
+      expect(names(cubit.dueUsuals), ['Milch', 'Hafer-Milch']);
+    });
+
+    test('adding a usual takes its quantity', () async {
+      final result = cubit.addUsual(cubit.suggestionsFor('möh').single);
+      expect(result, isA<Added>());
+      await settle();
+      final row = repo.rows.values.single;
+      expect((row.name, row.quantity), ('Möhren', '1 kg'));
+      expect(cubit.addUsual(cubit.state.usuals[3]), isA<AlreadyOnList>());
+    });
+
+    test('cached usuals work offline', () async {
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      repo.online = false;
+      await startAgain();
+      expect(cubit.state.connection, ConnectionStatus.offline);
+      expect(names(cubit.suggestionsFor('mi')), ['Milch', 'Hafer-Milch']);
+      expect(names(cubit.dueUsuals), hasLength(3));
+    });
+
+    test('a failed refresh keeps them and the list stays online', () async {
+      repo
+        ..usualsFail = true
+        ..usuals = [];
+      await cubit.resync();
+      await settle();
+      expect(cubit.state.connection, isNot(ConnectionStatus.offline));
+      expect(cubit.state.usuals, hasLength(8));
+    });
+
+    test('they refresh once the list settles after a change', () async {
+      final before = repo.usualsCalls;
+      final id = (cubit.add('Brot') as Added).item.id;
+      await settle();
+      cubit.tick(id);
+      await settle();
+      expect(repo.usualsCalls, before);
+      repo.usuals = [const Usual(name: 'Brot', due: true)];
+      await Future<void>.delayed(const Duration(milliseconds: 1600));
+      expect(repo.usualsCalls, before + 1);
+      expect(names(cubit.dueUsuals), ['Brot']);
     });
   });
 }

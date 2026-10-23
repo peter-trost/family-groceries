@@ -161,5 +161,15 @@
   "@storeLayoutTitle": {"placeholders": {"store": {"type": "String"}}},
   "storeLayoutHint": "Ordne die Kategorien so, wie du durch den Laden gehst. Schalte aus, was es dort nicht gibt.",
   "storeCarries": "{category} gibt es bei {store}",
-  "@storeCarries": {"placeholders": {"category": {"type": "String"}, "store": {"type": "String"}}}
+  "@storeCarries": {"placeholders": {"category": {"type": "String"}, "store": {"type": "String"}}},
+  "newItemsFrom": "{count} neu von {name}",
+  "@newItemsFrom": {"placeholders": {"count": {"type": "int"}, "name": {"type": "String"}}},
+  "newItems": "{count} neu",
+  "@newItems": {"placeholders": {"count": {"type": "int"}}},
+  "newItem": "Neu",
+  "addedBy": "Von {name} hinzugefügt",
+  "@addedBy": {"placeholders": {"name": {"type": "String"}}},
+  "suggestion": "Vorschlag: {label}",
+  "@suggestion": {"placeholders": {"label": {"type": "String"}}},
+  "dueSuggestions": "Brauchen wir wieder?"
 }

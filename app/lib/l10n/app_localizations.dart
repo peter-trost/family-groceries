@@ -891,6 +891,42 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'{category} gibt es bei {store}'**
   String storeCarries(String category, String store);
+
+  /// No description provided for @newItemsFrom.
+  ///
+  /// In de, this message translates to:
+  /// **'{count} neu von {name}'**
+  String newItemsFrom(int count, String name);
+
+  /// No description provided for @newItems.
+  ///
+  /// In de, this message translates to:
+  /// **'{count} neu'**
+  String newItems(int count);
+
+  /// No description provided for @newItem.
+  ///
+  /// In de, this message translates to:
+  /// **'Neu'**
+  String get newItem;
+
+  /// No description provided for @addedBy.
+  ///
+  /// In de, this message translates to:
+  /// **'Von {name} hinzugefügt'**
+  String addedBy(String name);
+
+  /// No description provided for @suggestion.
+  ///
+  /// In de, this message translates to:
+  /// **'Vorschlag: {label}'**
+  String suggestion(String label);
+
+  /// No description provided for @dueSuggestions.
+  ///
+  /// In de, this message translates to:
+  /// **'Brauchen wir wieder?'**
+  String get dueSuggestions;
 }
 
 class _AppLocalizationsDelegate

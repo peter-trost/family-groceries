@@ -1,18 +1,24 @@
 import 'package:family_groceries/l10n/app_localizations.dart';
 import 'package:family_groceries/list/list_cubit.dart';
 import 'package:family_groceries/list/list_screen.dart';
+import 'package:family_groceries/list/model.dart';
 import 'package:family_groceries/session/session_cubit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 import 'fake_repository.dart';
 import 'memory_cache.dart';
 
 void main() {
   late FakeRepository repo;
+
+  setUp(
+    () => VisibilityDetectorController.instance.updateInterval = Duration.zero,
+  );
 
   Future<void> pumpList(
     WidgetTester tester, {
@@ -234,5 +240,210 @@ void main() {
       (r) => r.storeId == 'dm' && r.categoryId == 'produce',
     );
     expect(produce.hidden, isFalse);
+  });
+
+  group('who added what', () {
+    Finder row(String name) => find.widgetWithText(ListTile, name);
+    String rowLabel(WidgetTester tester, String name) =>
+        tester.getSemantics(row(name)).label;
+
+    testWidgets('a partner item shows her initial, an own item none', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      late String milk;
+      await pumpList(tester, seed: (repo) => milk = repo.remoteAdd('Milch').id);
+      await tester.enterText(addField(), 'Brot');
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await tester.pumpAndSettle();
+
+      final badge = find.byKey(ValueKey('added-by-$milk'));
+      expect(
+        find.descendant(of: badge, matching: find.text('L')),
+        findsOneWidget,
+      );
+      expect(rowLabel(tester, 'Milch'), contains('Von Lea hinzugefügt'));
+      expect(rowLabel(tester, 'Milch'), startsWith('Milch'));
+      expect(rowLabel(tester, 'Brot'), isNot(contains('hinzugefügt')));
+      expect(
+        find.descendant(of: row('Brot'), matching: find.byType(CircleAvatar)),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('new-items-subtitle')), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets('live partner adds are new, named in the title', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpList(tester);
+      final tea = repo.remoteAdd('Tee');
+      repo.emitItem!(tea);
+      await tester.pump();
+      await tester.pump();
+      expect(find.byKey(ValueKey('new-${tea.id}')), findsOneWidget);
+      expect(rowLabel(tester, 'Tee'), contains('Neu'));
+      expect(find.text('1 neu von Lea'), findsOneWidget);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('new-items-subtitle')))
+            .data,
+        '1 neu von Lea',
+      );
+
+      repo.members = [
+        ...repo.members,
+        const Member(id: 'ana', displayName: 'Ana'),
+      ];
+      repo.emitItem!(repo.remoteAdd('Kaffee', addedBy: 'ana'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('2 neu'), findsOneWidget);
+      expect(
+        find.descendant(of: row('Kaffee'), matching: find.text('A')),
+        findsOneWidget,
+        reason: 'the new member is loaded',
+      );
+      handle.dispose();
+      await tester.pump(const Duration(seconds: 4));
+    });
+
+    testWidgets('a new item clears after three seconds on screen', (
+      tester,
+    ) async {
+      await pumpList(tester);
+      final tea = repo.remoteAdd('Tee');
+      repo.emitItem!(tea);
+      await tester.pump();
+      await tester.pump();
+      final mark = find.byKey(ValueKey('new-${tea.id}'));
+      await tester.pump(const Duration(seconds: 2));
+      expect(mark, findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 1100));
+      await tester.pump();
+      expect(mark, findsNothing);
+      expect(find.byKey(const ValueKey('new-items-subtitle')), findsNothing);
+      expect(tester.widget<TextField>(addField()).focusNode!.hasFocus, isTrue);
+    });
+
+    testWidgets('in the background the clock stops', (tester) async {
+      await pumpList(tester);
+      final tea = repo.remoteAdd('Tee');
+      repo.emitItem!(tea);
+      await tester.pump();
+      await tester.pump();
+      final mark = find.byKey(ValueKey('new-${tea.id}'));
+      await tester.pump(const Duration(seconds: 2));
+      tester.binding
+        ..handleAppLifecycleStateChanged(AppLifecycleState.inactive)
+        ..handleAppLifecycleStateChanged(AppLifecycleState.hidden)
+        ..handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump(const Duration(seconds: 5));
+      expect(mark, findsOneWidget);
+      tester.binding
+        ..handleAppLifecycleStateChanged(AppLifecycleState.hidden)
+        ..handleAppLifecycleStateChanged(AppLifecycleState.inactive)
+        ..handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump(const Duration(seconds: 2));
+      expect(mark, findsOneWidget, reason: 'the three seconds start again');
+      await tester.pump(const Duration(milliseconds: 1100));
+      await tester.pump();
+      expect(mark, findsNothing);
+    });
+  });
+
+  group('usuals', () {
+    void seedUsuals(FakeRepository repo) => repo.usuals = [
+      const Usual(name: 'Gurken', quantity: '2', due: true),
+      const Usual(name: 'Gurkensalat', due: false),
+      const Usual(name: 'Brot', due: true),
+    ];
+    FocusNode fieldFocus(WidgetTester tester) =>
+        tester.widget<TextField>(addField()).focusNode!;
+
+    testWidgets('the empty field offers what is due', (tester) async {
+      await pumpList(tester, seed: seedUsuals);
+      final due = find.byKey(const ValueKey('due-suggestions'));
+      expect(
+        find.descendant(of: due, matching: find.text('Brauchen wir wieder?')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: due, matching: find.text('2 Gurken')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('suggestion-Gurkensalat')),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('suggestions')), findsNothing);
+    });
+
+    testWidgets('typing shows chips; a tap adds and typing goes on', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpList(tester, seed: seedUsuals);
+      await tester.enterText(addField(), 'gur');
+      await tester.pump();
+      final chipFinder = find.byKey(const ValueKey('suggestion-Gurken'));
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('suggestions')),
+          matching: chipFinder,
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('suggestion-Gurkensalat')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('due-suggestions')), findsNothing);
+      expect(find.bySemanticsLabel('Vorschlag: 2 Gurken'), findsOneWidget);
+
+      await tester.tap(chipFinder);
+      await tester.pumpAndSettle();
+      final row = repo.rows.values.single;
+      expect((row.name, row.quantity), ('Gurken', '2'));
+      expect(tester.widget<TextField>(addField()).controller!.text, isEmpty);
+      expect(fieldFocus(tester).hasFocus, isTrue);
+      expect(FocusManager.instance.primaryFocus, fieldFocus(tester));
+
+      // Straight into the field's input connection: no tap that refocuses.
+      tester.testTextInput.enterText('Brot');
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect([for (final i in repo.rows.values) i.name], ['Gurken', 'Brot']);
+      expect(fieldFocus(tester).hasFocus, isTrue);
+      handle.dispose();
+    });
+
+    testWidgets('a chip never takes focus', (tester) async {
+      await pumpList(tester, seed: seedUsuals);
+      expect(find.byType(ActionChip), findsWidgets);
+      for (var i = 0; i < 8; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        final focused = FocusManager.instance.primaryFocus?.context;
+        expect(
+          focused?.findAncestorWidgetOfExactType<ActionChip>(),
+          isNull,
+          reason: 'tab $i landed on a chip',
+        );
+      }
+    });
+
+    testWidgets('a chip goes once its item is on the list', (tester) async {
+      await pumpList(tester, seed: seedUsuals);
+      await tester.enterText(addField(), 'gurken');
+      await tester.pump();
+      repo.emitItem!(repo.remoteAdd('Gurkensalat', addedBy: 'peter'));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('suggestion-Gurkensalat')),
+        findsNothing,
+      );
+    });
   });
 }

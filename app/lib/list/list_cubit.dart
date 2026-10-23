@@ -96,8 +96,13 @@ class ListCubit(
   Timer? _save;
   var _flushing = false;
 
-  /// Rows acknowledged while a resync is in flight; they beat its snapshot.
-  Map<String, Item?>? _ackedDuringResync;
+  /// Rows acknowledged during each resync in flight; they beat its snapshot.
+  /// Resyncs overlap (the opening one and the channel's first subscribe).
+  final _resyncAcks = <Map<String, Item?>>{};
+
+  /// Whether the realtime channel is subscribed. A resync that answers only
+  /// brings the list back online while it is.
+  var _channelUp = false;
 
   Stream<Rejected> get rejections => _rejections.stream;
 
@@ -135,6 +140,7 @@ class ListCubit(
         );
       },
       onStatus: (status) {
+        _channelUp = status == ConnectionStatus.online;
         emit(state.copyWith(connection: status));
         if (status == ConnectionStatus.online) {
           // Covers the first subscribe and every reconnect.
@@ -278,25 +284,33 @@ class ListCubit(
   }
 
   Future<void> resync() async {
-    _ackedDuringResync = {};
+    final acked = <String, Item?>{};
+    _resyncAcks.add(acked);
     try {
       final (catalog, rows) = await (
         _repo.fetchCatalog(),
         _repo.fetchItems(),
       ).wait;
       final snapshot = {for (final row in rows) row.id: row};
-      for (final MapEntry(:key, :value) in _ackedDuringResync!.entries) {
+      for (final MapEntry(:key, :value) in acked.entries) {
         if (value == null) {
           snapshot.remove(key);
         } else {
           snapshot[key] = value;
         }
       }
-      emit(state.copyWith(catalog: catalog, server: snapshot, loaded: true));
+      emit(
+        state.copyWith(
+          catalog: catalog,
+          server: snapshot,
+          loaded: true,
+          connection: _channelUp ? ConnectionStatus.online : null,
+        ),
+      );
     } on Object {
       _goOffline();
     } finally {
-      _ackedDuringResync = null;
+      _resyncAcks.remove(acked);
     }
     unawaited(_flush());
   }
@@ -339,7 +353,9 @@ class ListCubit(
   }
 
   void _ack(ItemOp op, Item? row) {
-    _ackedDuringResync?[op.itemId] = row;
+    for (final acked in _resyncAcks) {
+      acked[op.itemId] = row;
+    }
     final server = row == null
         ? ({...state.server}..remove(op.itemId))
         : mergeServerRow(state.server, row);

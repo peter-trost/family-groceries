@@ -100,7 +100,7 @@ class SessionCubit(final SupabaseClient _client, final SessionCache _cache)
       emit(const SignedOut());
       return;
     }
-    final row = await _client
+    final row = await _client.rest
         .from('household_members')
         .select('households(id, name)')
         .eq('user_id', userId)

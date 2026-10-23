@@ -42,7 +42,6 @@ Preconditions:
 ## Gotchas
 
 - Autofocus happens on open only. After a dialog, the menu or a tick, nothing has focus, and `fg type` without a matcher fails with `no_focus`. Use `--key add-item-field` from then on, and use `fg restart` to prove autofocus again.
-- On the linux surface a relaunched app comes back signed out (since 2026-10-23, job 4's device cache). supabase_flutter (`SharedPreferences`) and the app's offline cache (`SharedPreferencesAsync`) rewrite the same `shared_preferences.json` at sign-in, and the session is lost. Android and iOS keep the two in separate stores, so this is expected to be Linux-only (inferred, not tested). Reported on the jobs board. The list screen still opens fresh after `fg login`, which is what autofocus acts on.
 - On Linux there is no soft keyboard. "Keyboard up on open" can only be proven on the android surface with `fg screenshot --native`.
 - The UI is optimistic: an item vanishes before the server has it. Assert stored state with `fg db query`, and repeat the query if it lags for a second or two.
 - `--row Milch` picks the first row showing exactly "Milch". With Milch both on the list and in "Zuletzt gekauft", it targets the list row.

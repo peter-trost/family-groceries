@@ -31,12 +31,6 @@ run wait --text "$item" --gone --client lea >/dev/null
 
 step "reopen peter's app; nothing tapped in the list yet"
 run restart --client peter >/dev/null
-# On the linux surface the session does not survive a relaunch (features/quick-add.md, Gotchas):
-# sign in again, and the list screen then opens just as on launch.
-if [[ "$("$fg" find --key login-email --client peter | jq -r '.count')" != 0 ]]; then
-  echo "note: reopened app is signed out (linux session quirk); signing in again" >&2
-  run login peter >/dev/null
-fi
 run wait --key add-item-field --client peter >/dev/null
 run record start --name "peter-quick-add-$stamp" --client peter >/dev/null
 run record start --name "lea-live-sync-$stamp" --client lea >/dev/null

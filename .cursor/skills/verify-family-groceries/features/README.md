@@ -47,5 +47,6 @@ Keep implementation details out of the map. Name only user paths, stable handles
 - [Sign-in](./auth.md) covers email and password, sign-up, magic link through the local inbox, and sign-out.
 - [Household](./household.md) covers creating a household, inviting by code and joining with it.
 - [Classifier](./classifier.md) covers automatic categories for new items, moving an item to another category, and learning from the move.
+- [MCP access](./mcp-access.md) covers Menü → Zugänge: the MCP URL, creating and revoking access tokens, and disconnecting OAuth apps, each cut off on the next request.
 
-Not mapped yet. These are on main but outside this seed: Google and Apple sign-in (01b; buttons keyed `sign-in-google` and `sign-in-apple`, shown only when client IDs are configured), MCP, OAuth consent and access tokens (03; `/settings`, menu entry "Zugänge"), stores and category management (02; store picker "Alle/dm/Lidl/Edeka" under the add field, menu entry "Kategorien verwalten"). Still in flight: voice and the Siri endpoint (04). Each owner adds its file.
+Not mapped yet. These are on main but outside this seed: Google and Apple sign-in (01b; buttons keyed `sign-in-google` and `sign-in-apple`, shown only when client IDs are configured), the OAuth consent page (03; web only, `/oauth/consent`), stores and category management (02; store picker "Alle/dm/Lidl/Edeka" under the add field, menu entry "Kategorien verwalten"). Still in flight: voice and the Siri endpoint (04). Each owner adds its file.

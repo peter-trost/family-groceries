@@ -115,9 +115,9 @@ jobs:
         run: sudo sysctl -w net.ipv4.ip_local_port_range="60000 65000"
       - name: Start the local Supabase stack
         run: supabase start
-      - name: Export local stack URL and publishable key
+      - name: Export local stack URLs and publishable key
         run: |
-          supabase status -o env | sed -n 's/^API_URL=/SUPABASE_URL=/p; s/^PUBLISHABLE_KEY=/SUPABASE_PUBLISHABLE_KEY=/p' | tr -d '"' >> "$GITHUB_ENV"
+          supabase status -o env | sed -n 's/^API_URL=/SUPABASE_URL=/p; s/^PUBLISHABLE_KEY=/SUPABASE_PUBLISHABLE_KEY=/p; s/^MAILPIT_URL=/MAILPIT_URL=/p' | tr -d '"' >> "$GITHUB_ENV"
       - name: Build the web app against the local stack
         working-directory: app
         run: |

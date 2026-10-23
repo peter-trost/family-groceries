@@ -1,0 +1,41 @@
+
+== peter is signed in
+{"ok":true,"command":"doctor","healthy":true,"checks":[{"name":"docker","ok":true,"detail":"server 26.1.5+dfsg1"},{"name":"stack","ok":true,"detail":"family-groceries-546 at http://127.0.0.1:54621"},{"name":"auth","ok":true,"detail":"200 {\"version\":\"v2.197.0\",\"name\":\"GoTrue\",\"description\":\"GoTrue is a user registration and authentication API\"}"},{"name":"rest","ok":true,"detail":"200 {\"swagger\":\"2.0\",\"info\":{\"description\":\"\",\"title\":\"standard public schema\",\"version\":\"16.4\"},\"host\":\"0.0.0.0:3000\",\"base"},{"name":"realtime","ok":true,"detail":"container healthy"},{"name":"functions","ok":true,"detail":"200 {\"ok\":true,\"service\":\"family-groceries\"}"},{"name":"functions.served","ok":true,"detail":"every function in the checkout answers"},{"name":"stack.config","ok":true,"detail":"started with the current config.toml and functions"},{"name":"mailpit","ok":true,"detail":"http://127.0.0.1:54624"},{"name":"migrations","ok":true,"detail":"7 applied"},{"name":"users","ok":true,"detail":"peter@fg.test and lea@fg.test sign in, one household"},{"name":"surface","ok":true,"detail":"linux only on this box (2026-10-23T06:39:50+02:00 creating a KVM vCPU on this host triggers 'kernel BUG at arch/x86/kvm/x86.c:702' (vmx_vcpu_cre)"},{"name":"peter.process","ok":true,"detail":"linux app pid 774840 on :5461"},{"name":"peter.build","ok":true,"detail":"current (952beef20470d113)"},{"name":"peter.marionette","ok":true,"detail":"connected, 18 elements, screen list"}]}
+{"ok":true,"command":"find","client":"peter","count":0,"elements":[]}
+
+== precondition: 'Journey Client 110123' is connected over OAuth (registration, PKCE, consent, token over HTTP)
+OAuth token reaches MCP (200), expires in 60 min
+
+== peter opens Zugänge and sees the app
+{"ok":true,"command":"tap","client":"peter","tapped":{"matcher":{"x":392,"y":28},"ancestors":[]}}
+{"ok":true,"command":"wait","client":"peter","gone":false,"elapsedMs":972,"matches":[{"type":"Text","text":"Zugänge","bounds":{"x":192,"y":174,"width":56,"height":20}}]}
+{"ok":true,"command":"tap","client":"peter","tapped":{"matcher":{"text":"Zugänge"},"ancestors":[]}}
+{"ok":true,"command":"wait","client":"peter","gone":false,"elapsedMs":238,"matches":[{"type":"Text","text":"Journey Client 110123","bounds":{"x":52,"y":428,"width":284,"height":24}}]}
+[fg] start recording "mcp-disconnect-110123" (marionette) to /home/box/groceries-ops/evidence/03b-mcp-disconnect/mcp-disconnect-110123.webm
+{"ok":true,"command":"record start","client":"peter","name":"mcp-disconnect-110123","kind":"marionette","path":"/home/box/groceries-ops/evidence/03b-mcp-disconnect/mcp-disconnect-110123.webm","log":"/home/box/.cache/fg/546/record-mcp-disconnect-110123.log","did":["start recording \"mcp-disconnect-110123\" (marionette) to /home/box/groceries-ops/evidence/03b-mcp-disconnect/mcp-disconnect-110123.webm"]}
+{"ok":true,"command":"screenshot","client":"peter","path":"/home/box/groceries-ops/evidence/03b-mcp-disconnect/mcp-01-connected.png"}
+
+== peter disconnects it; its next MCP call gets 401
+{"ok":true,"command":"tap","client":"peter","tapped":{"matcher":{"x":368,"y":470},"ancestors":[]}}
+{"ok":true,"command":"wait","client":"peter","gone":false,"elapsedMs":238,"matches":[{"type":"Text","text":"Journey Client 110123 trennen?","bounds":{"x":64,"y":358,"width":284,"height":64}}]}
+{"ok":true,"command":"tap","client":"peter","tapped":{"matcher":{"text":"Trennen"},"ancestors":[]}}
+{"ok":true,"command":"wait","client":"peter","gone":true,"elapsedMs":304,"matches":[]}
+{"ok":true,"command":"screenshot","client":"peter","path":"/home/box/groceries-ops/evidence/03b-mcp-disconnect/mcp-02-disconnected.png"}
+{"ok":true,"command":"db query","as":"postgres","count":1,"rows":[{"n":0}]}
+
+== peter creates a token in the app; it reaches MCP
+{"ok":true,"command":"tap","client":"peter","tapped":{"matcher":{"text":"Token erstellen"},"ancestors":[]}}
+{"ok":true,"command":"wait","client":"peter","gone":false,"elapsedMs":237,"matches":[{"type":"TextField","label":"Name","bounds":{"x":90,"y":408,"width":232,"height":68}}]}
+{"ok":true,"command":"type","client":"peter","typed":"Journey 110123","into":{"x":206,"y":442},"submitted":false}
+{"ok":true,"command":"tap","client":"peter","tapped":{"matcher":{"text":"Erstellen"},"ancestors":[]}}
+{"ok":true,"command":"tap","client":"peter","tapped":{"matcher":{"text":"Fertig"},"ancestors":[]}}
+
+== peter revokes it; its next MCP call gets 401
+{"ok":true,"command":"tap","client":"peter","tapped":{"matcher":{"x":368,"y":316},"ancestors":[]}}
+{"ok":true,"command":"wait","client":"peter","gone":false,"elapsedMs":255,"matches":[{"type":"Text","text":"Token widerrufen?","bounds":{"x":64,"y":374,"width":284,"height":32}}]}
+{"ok":true,"command":"tap","client":"peter","tapped":{"matcher":{"text":"Widerrufen"},"ancestors":[]}}
+{"ok":true,"command":"wait","client":"peter","gone":true,"elapsedMs":227,"matches":[]}
+{"ok":true,"command":"screenshot","client":"peter","path":"/home/box/groceries-ops/evidence/03b-mcp-disconnect/mcp-03-token-revoked.png"}
+{"ok":true,"command":"db query","as":"postgres","count":1,"rows":[{"revoked":true}]}
+[fg] stop recording "mcp-disconnect-110123" (pid 776110)
+{"ok":true,"command":"record stop","stopped":[{"name":"mcp-disconnect-110123","path":"/home/box/groceries-ops/evidence/03b-mcp-disconnect/mcp-disconnect-110123.webm","exists":true,"durationSec":7.8}],"did":["stop recording \"mcp-disconnect-110123\" (pid 776110)"]}

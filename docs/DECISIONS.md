@@ -447,3 +447,39 @@ Numbered 3.x so parallel jobs don't collide. Details and sources: `docs/MCP.md`.
       text: `login-email`, `login-password`, `household-name`, `invite-code`,
       `add-item-field`. Buttons are reached by their text; keyless fields by
       label (`fg type --label`).
+
+## Job 3b (MCP follow-ups), 2026-10-23
+
+3b.1. **Disconnect = session check per request.** Supabase's OAuth server
+      cannot revoke an issued access token: its discovery document has no
+      revocation or introspection endpoint. `revokeGrant` does delete the
+      client's `auth.sessions` rows. `authenticate()` now accepts a JWT only
+      while `auth.sessions` has its `session_id` for that user and
+      `oauth_client_id`, and answers `401 invalid_token` otherwise. That is
+      one primary-key lookup per request, run in parallel with the
+      household lookup. Asking `/auth/v1/user` would also notice the missing
+      session, but costs an HTTP round trip through Auth. Shorter token
+      lifetimes would only shrink the window. App session tokens get the
+      same check, so signing out also ends the voice endpoint's access.
+3b.2. **MCP `add_items` calls `public.add_items` once per item.** That keeps
+      the per-item `store` and the order of results. An explicit `quantity`
+      overwrites the parsed one (an update that teaches nothing). An
+      explicit `category` is applied as an update after the add, so the
+      items trigger learns it. The tool tells assistants to send it only
+      when the user names a category, so it is the user's correction.
+      Supersedes 3.10.
+3b.3. **Each checkout's e2e run uses its own port block.** `e2e/stack.ts`
+      reads the URL, key and Mailpit URL from the environment or from
+      `supabase status` and throws when one is missing, with no 543xx
+      default. The web server port defaults to `<API port prefix>80`
+      (54321 → 54380, 54621 → 54680). Before, all checkouts used 3100 with
+      `reuseExistingServer`, so one job could test another job's build.
+      `config.toml` allows loopback redirects on any port for this. The
+      fake identity provider runs on the port of the Keycloak URL in the
+      checkout's `config.toml` (`<prefix>99`). Before, every job used 54399
+      with `reuseExistingServer`, and a run failed when the job owning the
+      server finished (seen here: `ECONNREFUSED 127.0.0.1:54399` in 6
+      id-token tests).
+3b.4. **Playwright runs one worker locally** (CI keeps 2). With 3 workers,
+      mem-guard paused this job for 45 s during a run (low RAM), and the
+      paused MCP request timed out the test.

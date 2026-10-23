@@ -27,9 +27,9 @@ name is enough. An id works too.
 | Tool | Input | What it does |
 | --- | --- | --- |
 | `list_items` | `store?`, `category?` | Open items in aisle order. With `store`: that store's items plus untagged ones, in that store's order. |
-| `add_items` | `items: [{name, quantity?, category?, store?}]` (1–50) | Adds items. Each one goes through `classify_item`, like items added in the app. Names already on the list come back under `alreadyOnList` instead of being duplicated. |
-| `tick_items` | `items: [name or id]` (1–50) | Ticks items off; they move to "Zuletzt gekauft". Unresolvable names come back under `notFound` with the reason. |
-| `move_item` | `item`, `category?`, `store?` (`null` removes the store) | Changes category and/or store. A category change is a correction the classifier learns from. |
+| `add_items` | `items: [{name, quantity?, category?, store?}]` (1–50) | Adds items through `public.add_items`, the add path Siri shares: a quantity in the name is split off ("2 Gurken"), the category comes from the household's learned corrections, then the German dictionary, and the store from where the item was last bought. Names already on the list ("Gurke" for "2 Gurken") come back under `alreadyOnList` instead of being duplicated. An explicit `category` is learned like a correction. |
+| `tick_items` | `items: [name or id]` (1–50) | Ticks items off; they move to "Zuletzt gekauft". Unresolvable or already ticked names come back under `notFound` with the reason, so a repeated call changes nothing. |
+| `move_item` | `item`, `category?`, `store?` (`null` removes the store) | Changes category and/or store. The household remembers both: the next `add_items` (or app add) of that item uses them. `store: null` forgets the store. |
 | `list_categories` | none | Categories in aisle order. |
 | `list_stores` | none | Stores. |
 
@@ -142,6 +142,11 @@ The function (`supabase/functions/mcp/handler.ts`):
      `aud = "authenticated"`, an unexpired `exp`, `role = "authenticated"`
      and a `client_id` claim. That claim marks a token issued to an OAuth
      client.
+   - **Session check (both JWT kinds).** The token's `session_id` must
+     still exist in `auth.sessions` for that user and OAuth client (one
+     primary-key lookup per request). Supabase cannot revoke an issued JWT,
+     but disconnecting an app deletes its sessions, so this check ends access
+     on the next request. See [Disconnecting and revoking](#disconnecting-and-revoking).
    - **App session token** (no `client_id`). Accepted by `authenticate()`
      for the app's own calls (the voice endpoint), but refused by the MCP
      endpoint, so a token issued to the app cannot be replayed at it.
@@ -156,6 +161,24 @@ The function (`supabase/functions/mcp/handler.ts`):
    triggers and `classify_item` therefore behave exactly as they do for the
    app. Another household's rows are invisible. The function never writes
    with the service role.
+
+### Disconnecting and revoking
+
+Both take effect on the client's next request; no access token keeps
+working until it expires.
+
+- **OAuth app** (Zugänge → Verbundene Apps → Trennen). The app calls
+  `auth.oauth.revokeGrant(clientId)`. Supabase marks the consent revoked,
+  deletes the client's sessions and invalidates their refresh tokens
+  ([revokeGrant reference](https://supabase.com/docs/reference/javascript/oauth-server-revokegrant)).
+  The access token itself is a signed JWT that Supabase cannot revoke (its
+  discovery document has no revocation or introspection endpoint), so the
+  function checks the session per request and answers `401
+  error="invalid_token"`. A client then has to ask for consent again.
+- **Personal access token** (Zugänge → `<name>` widerrufen). Every request
+  looks the token up by hash, so a revoked token gets `401` at once.
+- **Signing out** of the app deletes that session, so its token stops
+  working at the voice endpoint the same way.
 
 Personal access tokens live in `public.personal_access_tokens` (migration
 `*_personal_access_tokens.sql`). Only the hash is stored, plus the last four
@@ -269,7 +292,13 @@ stack or the hosted project, not only the docs:
     appearing live in the app;
   - deny returns `access_denied`;
   - a signed-out user signs in on the way and lands back on the consent page;
-  - a PAT created in the app works over both protocol eras, and after
-    revocation gets `401`;
+  - disconnecting the app under Zugänge gives the very next call `401`
+    (the access token is still ~1 h from expiry) and the refresh token is
+    refused;
+  - a category and store corrected with `move_item`, or an explicit
+    category on add, are used on the next `add_items`; "Gurke" is
+    recognised as "2 Gurken";
+  - a PAT created in the app works over both protocol eras, and the first
+    call after revocation gets `401`;
   - another household's token can neither see nor change the list;
   - app session tokens and forged tokens get `401`.

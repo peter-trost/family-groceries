@@ -5,6 +5,7 @@
 - Job 3, MCP server, OAuth 2.1, personal access tokens: [docs/done/03-mcp-oauth-tokens.md](docs/done/03-mcp-oauth-tokens.md)
 - Job 4, Siri endpoint, in-app dictation, release setup, final pass (whole-project overview and everything that needs Peter): [docs/done/04-voice-release.md](docs/done/04-voice-release.md)
 - Job 5, verification skill and the fg CLI: [docs/done/05-verification-skill.md](docs/done/05-verification-skill.md)
+- Job 3b, MCP follow-ups: [docs/done/03b.md](docs/done/03b.md)
 
 ## Job 1: foundation (2026-10-22)
 

@@ -22,11 +22,6 @@ const toolsList = (token: string) =>
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
   });
 
-// Under heavy load the SDK client sometimes loses a request to the edge runtime
-// ("SdkHttpError: Error POSTing to endpoint" with no response); one retry keeps
-// ci-ok from flapping on that, while a real failure still fails twice.
-test.describe.configure({ retries: 1 });
-
 test('MCP over OAuth 2.1: discovery, registration, consent with PKCE, then tools change the list live', async ({ browser, baseURL }) => {
   const context = await browser.newContext();
   const app = await context.newPage();

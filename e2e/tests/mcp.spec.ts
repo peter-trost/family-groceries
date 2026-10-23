@@ -1,5 +1,5 @@
 import { Client, StreamableHTTPClientTransport, UnauthorizedError } from '@modelcontextprotocol/client';
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, test } from './fixtures';
 import {
   addItem, apiAs, itemRow, newEmail, password, publishableKey, screenshot, signUpWithHousehold, supabaseUrl, typeInto,
 } from './helpers';

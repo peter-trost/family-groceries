@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import {
   addField, addItem, apiAs, itemRow, newEmail, password, screenshot, signUpWithHousehold, supabaseUrl, tickBox, typeInto,
 } from './helpers';

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from './fixtures';
 import { dragHandle, groupHeadings, selectStore } from './catalog';
 import {
   addField, addItem, createInviteCode, itemRow, newEmail, screenshot, signUp, signUpWithHousehold, tickBox, typeInto,
@@ -9,7 +9,7 @@ const route = [
   '👶 Drogerie',
 ];
 
-async function setStore(page: import('@playwright/test').Page, item: string, store: string): Promise<void> {
+async function setStore(page: Page, item: string, store: string): Promise<void> {
   await itemRow(page, item).click();
   await page.getByRole('button', { name: /Geschäft/ }).click();
   await page.getByRole('menuitem', { name: store, exact: true }).click();

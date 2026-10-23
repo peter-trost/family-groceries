@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { addItem, apiAs, itemRow, newEmail, signUpWithHousehold } from './helpers';
 
 test('a user from another household can neither see nor change the list', async ({ browser }) => {

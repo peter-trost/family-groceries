@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import {
   addField, addItem, createInviteCode, itemRow, newEmail, screenshot, signUp, signUpWithHousehold, tickBox, typeInto,
 } from './helpers';

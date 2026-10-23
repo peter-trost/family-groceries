@@ -112,6 +112,33 @@ void main() {
     expect(activeNames(), ['Tee']);
   });
 
+  test('overlapping resyncs both land and the list stays online', () async {
+    repo.remoteAdd('Tee');
+    // The channel subscribes while the opening resync is still in flight.
+    repo.emitStatus!(ConnectionStatus.online);
+    await cubit.resync();
+    await settle();
+    expect(cubit.state.connection, ConnectionStatus.online);
+    expect(activeNames(), ['Tee']);
+  });
+
+  test('a resync that answers after a failed one clears offline', () async {
+    repo.emitStatus!(ConnectionStatus.online);
+    await settle();
+    repo.online = false;
+    await cubit.resync();
+    expect(cubit.state.connection, ConnectionStatus.offline);
+    repo.online = true;
+    await cubit.resync();
+    expect(cubit.state.connection, ConnectionStatus.online);
+  });
+
+  test('a resync does not claim online while the channel is down', () async {
+    repo.emitStatus!(ConnectionStatus.offline);
+    await cubit.resync();
+    expect(cubit.state.connection, ConnectionStatus.offline);
+  });
+
   test('a delete can be undone with the same id', () async {
     final item = (cubit.add('Milch') as Added).item;
     await settle();

@@ -171,8 +171,26 @@ class _ShoppingListState() extends State<ShoppingList> {
 
   void _submit() => _afterAdd(context.read<ListCubit>().add(_input.text));
 
-  void _addUsual(Usual usual) =>
-      _afterAdd(context.read<ListCubit>().addUsual(usual));
+  void _addUsual(Usual usual) {
+    _afterAdd(context.read<ListCubit>().addUsual(usual));
+    _refocusAfterTap();
+  }
+
+  /// On web a tap outside the field blurs its DOM input while Flutter keeps
+  /// the field focused, so requestFocus does nothing. A fresh focus gives the
+  /// input back; it waits for the engine's deferred blur of the closed
+  /// connection (a zero-delay timer) to run first, or that blur wins.
+  void _refocusAfterTap() {
+    if (!kIsWeb) {
+      return;
+    }
+    _inputFocus.unfocus();
+    Timer(const Duration(milliseconds: 50), () {
+      if (mounted) {
+        _inputFocus.requestFocus();
+      }
+    });
+  }
 
   void _afterAdd(AddResult result) {
     final l10n = AppLocalizations.of(context);
@@ -376,7 +394,10 @@ class _ShoppingListState() extends State<ShoppingList> {
                       IconButton(
                         tooltip: l10n.addButton,
                         icon: const Icon(Icons.send),
-                        onPressed: _submit,
+                        onPressed: () {
+                          _submit();
+                          _refocusAfterTap();
+                        },
                       ),
                     ],
                   ),

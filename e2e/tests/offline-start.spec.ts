@@ -1,24 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
-  addField, addItem, apiAs, itemRow, newEmail, password, screenshot, signUpWithHousehold, supabaseUrl, tickBox, typeInto,
+  addField, addItem, apiAs, cutOff, itemRow, newEmail, password, screenshot, signUpWithHousehold, tickBox, typeInto,
 } from './helpers';
-
-/** Cuts the page off from Supabase (HTTP and realtime); the app itself still loads. */
-async function cutOff(page: Page): Promise<{ restore: () => Promise<void> }> {
-  let offline = true;
-  const http = `${supabaseUrl}/**`;
-  await page.route(http, (route) => route.abort());
-  await page.routeWebSocket(new RegExp(`^ws://${new URL(supabaseUrl).host}/`), (ws) => {
-    if (offline) ws.close();
-    else ws.connectToServer();
-  });
-  return {
-    restore: async () => {
-      offline = false;
-      await page.unroute(http);
-    },
-  };
-}
 
 /** The list snapshot the app keeps in localStorage, or null. */
 function cachedList(page: Page): Promise<{ server: unknown[]; pending: unknown[] } | null> {

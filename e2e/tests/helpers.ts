@@ -144,3 +144,20 @@ export async function viaFakeProvider(page: Page, email: string, { cancel = fals
     await route.fulfill({ status: 302, headers: { location: url.href } });
   });
 }
+
+/** Cuts the page off from Supabase (HTTP and realtime); the app itself still loads. */
+export async function cutOff(page: Page): Promise<{ restore: () => Promise<void> }> {
+  let offline = true;
+  const http = `${supabaseUrl}/**`;
+  await page.route(http, (route) => route.abort());
+  await page.routeWebSocket(new RegExp(`^ws://${new URL(supabaseUrl).host}/`), (ws) => {
+    if (offline) ws.close();
+    else ws.connectToServer();
+  });
+  return {
+    restore: async () => {
+      offline = false;
+      await page.unroute(http);
+    },
+  };
+}

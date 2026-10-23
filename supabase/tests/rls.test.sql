@@ -1,5 +1,5 @@
 begin;
-select plan(35);
+select plan(37);
 
 create function pg_temp.login(uid uuid) returns void language plpgsql as $$
 begin
@@ -29,6 +29,10 @@ where household_id = (select id from ha);
 create temp table alice_store as select id from public.stores where household_id = (select id from ha) and seed_key = 'lidl';
 create temp table alice_category as
   select id from public.categories where household_id = (select id from ha) and seed_key = 'drinks';
+-- Job 8: a bought and then deleted item stays in Alice's history as a suggestion.
+insert into public.items (household_id, name) select id, 'Kaffee' from ha;
+update public.items set status = 'bought' where household_id = (select id from ha) and name = 'Kaffee';
+delete from public.items where household_id = (select id from ha) and name = 'Kaffee';
 
 select pg_temp.login('00000000-0000-0000-0000-0000000000b1');
 create temp table hb as select id from public.create_household('Bob');
@@ -51,6 +55,8 @@ select is((select count(*)::int from public.invites), 0, 'invites of another hou
 select is((select count(*)::int from public.item_events where household_id = (select id from ha)), 0,
   'history of another household is invisible');
 select is((select count(*)::int from public.profiles), 1, 'profiles outside the household are invisible');
+select is((select count(*)::int from public.suggest_items((select id from ha), '', 200)), 0,
+  'suggestions from another household''s history are empty');
 
 select throws_ok(
   $$ insert into public.items (household_id, name) select id, 'Fremd' from ha $$,
@@ -126,6 +132,8 @@ select results_eq(
 );
 select is((select count(*)::int from public.categories where household_id = (select id from ha)), 11,
   'the other user''s category delete changed nothing');
+select results_eq($$ select name from public.suggest_items((select id from ha), '', 200) $$, $$ values ('Kaffee') $$,
+  'Alice gets her own suggestions');
 select pg_temp.anon();
 set local role postgres;
 select throws_ok(

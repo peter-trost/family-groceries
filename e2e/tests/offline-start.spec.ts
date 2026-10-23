@@ -58,10 +58,11 @@ test('a cold start without Supabase shows the cached list, queues changes across
   const network = await cutOff(page);
   await expireStoredSession(page);
   await page.reload();
-  await expect(itemRow(page, 'Brot'), 'the cached list shows offline').toBeVisible();
+  // Fails fast: no hidden library retries (they took 7 s per read) before the cache shows.
+  await expect(itemRow(page, 'Brot'), 'the cached list shows offline').toBeVisible({ timeout: 3_000 });
   await expect(itemRow(page, 'Milch')).toBeVisible();
   await expect(addField(page)).toBeFocused();
-  await expect(page.getByText(/^Offline:/)).toHaveCount(1);
+  await expect(page.getByText(/^Offline:/), 'and says so right away').toHaveCount(1, { timeout: 3_000 });
 
   await addItem(page, 'Käse');
   await tickBox(page, 'Brot').click();

@@ -483,3 +483,59 @@ Numbered 3.x so parallel jobs don't collide. Details and sources: `docs/MCP.md`.
 3b.4. **Playwright runs one worker locally** (CI keeps 2). With 3 workers,
       mem-guard paused this job for 45 s during a run (low RAM), and the
       paused MCP request timed out the test.
+
+## Job 7 (Vercel hosting, auth config, API-only deploy), 2026-10-23
+
+7.1. **Vercel hosts the web app** (Peter's decision, 2026-10-23 10:58,
+     instead of GitHub Pages). A Git-linked Vercel project builds every push
+     from `vercel.json`; production is `main`. The app is served at the
+     domain root, so `WEB_BASE_PATH` and the Pages workflow are gone.
+7.2. **The Flutter SDK lives in `node_modules/.flutter`.** Vercel's build
+     cache keeps only `node_modules/**`. The SDK is a shallow clone of the
+     version in `ci.yml` (one source for CI and Vercel); the pub cache sits
+     next to it. Measured in Amazon Linux 2023 (`scripts/vercel-local.sh`):
+     cold install 50 s, cached install 20 s, build 35 s. SDK plus pub cache
+     are 1.55 GB uncompressed against Vercel's 1.5 GB cache limit; whether
+     the compressed cache fits is unknown until the first Vercel builds. If
+     it does not, every build pays the 50 s cold install.
+7.3. **SPA rewrite for extensionless paths only.** `/oauth/consent`,
+     `/join/CODE` and `/settings` serve `index.html`; a missing `.js` or
+     `.png` stays a 404 instead of HTML that the browser would try to run.
+7.4. **Cache headers.** Flutter's output is not content-hashed
+     (`main.dart.js` keeps its name), so every file revalidates
+     (`max-age=0, must-revalidate`, Vercel serves ETags), and the app routes,
+     `index.html`, `flutter_bootstrap.js`, `flutter_service_worker.js`,
+     `version.json` and `manifest.json` are `no-cache`.
+7.5. **The Vercel build refuses a wrong key.** `SUPABASE_URL` must be
+     `https://<ref>.supabase.co` and `SUPABASE_PUBLISHABLE_KEY` must start
+     with `sb_publishable_`; a missing or secret-looking value fails the
+     build instead of shipping the compiled-in defaults.
+7.6. **Edge function import maps via `config.toml`.** `supabase functions
+     deploy --use-api` bundles only the uploaded files and never saw
+     `supabase/functions/deno.json`, so bare imports (`jose`,
+     `@modelcontextprotocol/server`) failed. Each `[functions.<name>]` now
+     sets `import_map = "./functions/deno.json"`: one map shared with
+     `deno test`/`lint`, no per-function copies to drift.
+     `supabase/deploy/config_test.ts` fails for a function directory without
+     it (checked: it fails on the old config).
+7.7. **Migrations deploy through the Management API**
+     (`supabase/deploy/migrate.ts`). This box and an API-only workflow have
+     no Postgres connection. Each pending migration runs with its
+     `supabase_migrations.schema_migrations` row (repo version and name) in
+     one transaction, so `supabase migration list` and `db push` see the same
+     history. Checked against the local database: a migration that fails
+     leaves neither its objects nor its row, and the CLI lists an applied one.
+     It stops on drift: a remote version missing locally, or a pending
+     migration older than the newest remote one (rename it, as
+     COORDINATION.md says).
+7.8. **The Supabase deploy workflow fails without credentials.** It needs
+     only `SUPABASE_ACCESS_TOKEN` and `SUPABASE_PROJECT_REF` (no database
+     password, no Docker) and ends with a smoke test of `health` and the MCP
+     metadata. Before, missing secrets skipped every step and the run showed
+     green in 6 s.
+7.9. **Production redirect list has no localhost entries.** Earlier notes
+     suggested `http://localhost:3000/**`; local development uses the local
+     stack, and a localhost redirect on production would hand tokens to
+     whatever runs on that port. `supabase/deploy/auth_urls.ts` sets the
+     Site URL, the redirect list and the consent path and keeps entries added
+     by hand.

@@ -435,11 +435,14 @@ enabled = true
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
 
 [functions.health]
+import_map = "./functions/deno.json"
 verify_jwt = false
 
 [functions.mcp]
+import_map = "./functions/deno.json"
 verify_jwt = false
 
 [functions.voice]
+import_map = "./functions/deno.json"
 # Siri and the app send personal access tokens or session JWTs; the function checks them itself.
 verify_jwt = false

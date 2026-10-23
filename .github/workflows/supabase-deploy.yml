@@ -1,7 +1,6 @@
-# Pushes migrations and edge functions to the hosted project from main.
-# Auth URLs are set once by hand until the web app has a public URL (docs/NEEDS_PETER.md).
-# Needs repo secrets SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD and the repo
-# variable (or secret) SUPABASE_PROJECT_REF; without them every step is skipped and the run stays green.
+# Deploys migrations and edge functions to the hosted project from main, over HTTPS only:
+# migrations through the Management API (supabase/deploy/migrate.ts), functions bundled by
+# Supabase (--use-api). No Postgres connection and no Docker. A missing credential fails the run.
 name: Supabase deploy
 
 on:
@@ -22,27 +21,31 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || secrets.SUPABASE_PROJECT_REF }}
     steps:
-      - name: Check for deploy credentials
-        id: creds
+      - name: Check deploy credentials
         run: |
-          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_DB_PASSWORD" ] && [ -n "$SUPABASE_PROJECT_REF" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Supabase deploy skipped: set SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD and SUPABASE_PROJECT_REF (see docs/NEEDS_PETER.md)."
+          missing=""
+          [ -n "$SUPABASE_ACCESS_TOKEN" ] || missing="$missing secret SUPABASE_ACCESS_TOKEN,"
+          [ -n "$SUPABASE_PROJECT_REF" ] || missing="$missing variable SUPABASE_PROJECT_REF,"
+          if [ -n "$missing" ]; then
+            echo "::error::Nothing was deployed. Missing:${missing%,} (docs/NEEDS_PETER.md, section 1)."
+            exit 1
           fi
-      - if: steps.creds.outputs.ready == 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - if: steps.creds.outputs.ready == 'true'
-        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: v2.x
+      - name: Migrations
+        run: deno run --allow-read --allow-env --allow-net --config supabase/deploy/deno.json supabase/deploy/migrate.ts
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
           version: 2.121.0
-      - if: steps.creds.outputs.ready == 'true'
-        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
-      - if: steps.creds.outputs.ready == 'true'
-        run: supabase db push
-      - if: steps.creds.outputs.ready == 'true'
-        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
+      - name: Edge functions
+        run: supabase functions deploy --use-api --project-ref "$SUPABASE_PROJECT_REF"
+      - name: Smoke test
+        run: |
+          base="https://$SUPABASE_PROJECT_REF.supabase.co/functions/v1"
+          curl -fsS "$base/health" | grep -q '"ok":true'
+          curl -fsS "$base/mcp/.well-known/oauth-protected-resource" | grep -q '"resource"'
+          echo "health and mcp metadata answer on $base"

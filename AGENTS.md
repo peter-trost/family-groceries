@@ -16,8 +16,11 @@ reasons are in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 - `e2e/`: Playwright tests that drive the Flutter web build against the local
   stack.
 - `app/fastlane/`, `.github/workflows/release.yml`: TestFlight and Play
-  internal releases, manual, signing from secrets (`docs/RELEASE.md`);
-  `web-deploy.yml` publishes the web app to GitHub Pages.
+  internal releases, manual, signing from secrets (`docs/RELEASE.md`).
+- `vercel.json`, `scripts/vercel.sh`: Vercel builds and hosts the web app on
+  every push (`scripts/vercel-local.sh` runs the same build in Vercel's base
+  image). `supabase-deploy.yml` deploys migrations (`supabase/deploy/`,
+  Management API) and edge functions (`--use-api`) from main.
 - `supabase/functions/voice/`: the Siri and in-app dictation endpoint; the
   German sentence splitter is `parse.ts`, its table of sentences
   `parse_test.ts` (`docs/SIRI_SHORTCUT.md` for the Shortcut).

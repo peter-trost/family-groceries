@@ -2,9 +2,11 @@
 /// Defaults point at the production project; its URL and publishable key
 /// are public by design.
 abstract final class Environment() {
+  static const _productionSupabaseUrl =
+      'https://jdwqrallbpdbshrdhenk.supabase.co';
   static const supabaseUrl = String.fromEnvironment(
     'SUPABASE_URL',
-    defaultValue: 'https://jdwqrallbpdbshrdhenk.supabase.co',
+    defaultValue: _productionSupabaseUrl,
   );
   static const supabasePublishableKey = String.fromEnvironment(
     'SUPABASE_PUBLISHABLE_KEY',
@@ -12,12 +14,14 @@ abstract final class Environment() {
   );
 
   /// Public web origin for invite links from the mobile apps; empty shows
-  /// only the code.
-  static const appUrl = String.fromEnvironment('APP_URL');
-
-  /// Path the web app is served under, e.g. `/family-groceries` on GitHub
-  /// Pages; empty at the domain root. Must match the build's `--base-href`.
-  static const webBasePath = String.fromEnvironment('WEB_BASE_PATH');
+  /// only the code. Production builds link to the Vercel app; builds against
+  /// another project (local stack) show only the code.
+  static const appUrl = String.fromEnvironment(
+    'APP_URL',
+    defaultValue: supabaseUrl == _productionSupabaseUrl
+        ? 'https://family-groceries-pied.vercel.app'
+        : '',
+  );
 
   /// Google OAuth "Web application" client ID. Supabase verifies ID tokens
   /// against it and native sign-in passes it as the server client ID; empty
@@ -38,5 +42,5 @@ abstract final class Environment() {
   static const mcpUrl = '$supabaseUrl/functions/v1/mcp';
 }
 
-/// Where this web app lives: origin plus [Environment.webBasePath].
-String get webRoot => '${Uri.base.origin}${Environment.webBasePath}';
+/// Where this web app lives; it is always served at the domain root.
+String get webRoot => Uri.base.origin;

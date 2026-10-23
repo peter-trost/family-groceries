@@ -171,3 +171,7 @@ Results after the fixes (local `scripts/verify.sh`): pgTAP 54/54, Flutter
 ## Job 3: MCP server, OAuth 2.1, personal access tokens
 
 See [docs/done/03-mcp-oauth-tokens.md](docs/done/03-mcp-oauth-tokens.md).
+
+## Job 7: Vercel hosting, auth config, API-only deploy
+
+See [docs/done/07-pages-auth-config.md](docs/done/07-pages-auth-config.md).

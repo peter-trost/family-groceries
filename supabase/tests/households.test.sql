@@ -63,7 +63,7 @@ select is(
 );
 insert into public.items (household_id, name) select id, 'Glühbirnen' from h;
 select is(
-  (select c.seed_key from public.items i join public.categories c on c.id = i.category_id where i.name = 'Glühbirnen'),
+  (select c.seed_key from public.categories c where c.id = public.classify_item((select id from h), 'Quietscheentchen')),
   'other', 'unknown items land in the fallback category'
 );
 select is(

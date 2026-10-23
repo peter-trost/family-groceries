@@ -382,4 +382,98 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get disconnectBody =>
       'Die App verliert sofort den Zugriff auf deine Liste.';
+
+  @override
+  String get allStores => 'Alle';
+
+  @override
+  String get editStoreLayout => 'Reihenfolge bearbeiten';
+
+  @override
+  String showHiddenItems(int count, String store) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Artikel, die es bei $store meist nicht gibt, anzeigen',
+      one: '1 Artikel, den es bei $store meist nicht gibt, anzeigen',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String hideHiddenItems(int count, String store) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Artikel, die es bei $store meist nicht gibt, ausblenden',
+      one: '1 Artikel, den es bei $store meist nicht gibt, ausblenden',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String emptyAtStore(String store) {
+    return 'Für $store steht nichts auf der Liste.';
+  }
+
+  @override
+  String get itemStore => 'Geschäft';
+
+  @override
+  String get anyStore => 'Alle Geschäfte';
+
+  @override
+  String get manageCategories => 'Kategorien verwalten';
+
+  @override
+  String get categoriesTitle => 'Kategorien';
+
+  @override
+  String get categoriesHint =>
+      'In dieser Reihenfolge sortiert „Alle“ die Liste. Tippe auf eine Kategorie, um sie umzubenennen.';
+
+  @override
+  String get categoryName => 'Name';
+
+  @override
+  String get renameCategory => 'Kategorie umbenennen';
+
+  @override
+  String get addCategory => 'Kategorie hinzufügen';
+
+  @override
+  String deleteCategory(String name) {
+    return '$name löschen';
+  }
+
+  @override
+  String get moveItemsTo => 'Artikel verschieben nach';
+
+  @override
+  String dragCategory(String name) {
+    return '$name verschieben';
+  }
+
+  @override
+  String categoryNameTaken(String name) {
+    return 'Eine Kategorie „$name“ gibt es schon.';
+  }
+
+  @override
+  String get catalogSaveFailed =>
+      'Die Änderung konnte nicht gespeichert werden.';
+
+  @override
+  String storeLayoutTitle(String store) {
+    return '$store: Reihenfolge';
+  }
+
+  @override
+  String get storeLayoutHint =>
+      'Ordne die Kategorien so, wie du durch den Laden gehst. Schalte aus, was es dort nicht gibt.';
+
+  @override
+  String storeCarries(String category, String store) {
+    return '$category gibt es bei $store';
+  }
 }

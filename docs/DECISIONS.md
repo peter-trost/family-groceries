@@ -241,3 +241,83 @@ Numbered 3.x so parallel jobs don't collide. Details and sources: `docs/MCP.md`.
       registration on, authorization path `/oauth/consent`. The project
       already signed with ES256. Deploying the function and migrations is
       still Peter's step (no DB password on the box), see `NEEDS_PETER.md`.
+
+## Job 2 (classifier and stores), 2026-10-22
+
+28. **One item key for the classifier and both memories.** `public.item_key(name)`
+    lowercases the name and folds umlauts and accents (`ä` and `ae` both become
+    `a`). It turns `ß` into `ss`, drops quantities with units and percentages,
+    and turns punctuation into spaces. Then it stems each word by stripping one
+    plural ending (`-n` after e/l/r, then `-e`, then `-s`). So "2 kg Äpfel" and
+    "Aepfel" share the key `apfel`, and so do Gurke and Gurken. Plurals in
+    `-er` (Eier, Kräuter) are not reduced, so the dictionary lists both forms.
+    The key is a matching key, never shown.
+29. **Pipeline order: memory, dictionary, fallback.** `classify_item` checks
+    the household's learned memory by exact key first. Then it checks the
+    dictionary, and the first rule that matches wins:
+    1. A multi-word phrase found in the name.
+    2. The whole name is a term.
+    3. A frozen marker. "TK", or a word starting with Tiefkühl, tiefgekühlt
+       or gefroren, sends the item to Tiefkühl, so TK-Spinat is not produce.
+    4. Per word, the longest term the word ends with (compound heads:
+       Vollmilch → milch).
+    5. The longest term of four or more letters the word starts with.
+
+    When matches tie, the later word wins, because the head of a German
+    noun phrase comes last. Terms under three letters (ei, öl) only match
+    whole words. Anything else goes to "Sonstiges". Pet food is Haushalt.
+30. **Learning lives in a trigger, not in the callers.** An `UPDATE` that
+    changes `items.category_id` is a correction. It goes into
+    `category_memory` keyed by item key and category, with a count, and the
+    latest correction wins. The edit sheet's category picker and drag between
+    groups both write that column, and so will MCP's move tool. Edits that
+    keep the category teach nothing. Moves caused by deleting a category teach
+    nothing either (a transaction-local `family_groceries.learning = off`).
+31. **Dictionary as a TSV plus a generated migration.** The reviewable file is
+    `supabase/classifier/dictionary.tsv`. `generate.ts` writes it into a
+    migration, and a Deno test in CI fails if the newest
+    `*_classifier_dictionary*.sql` migration differs from the TSV. To change
+    the dictionary: edit the TSV, create a new migration, and run the
+    generator on it. A migration already on `main` is never edited.
+32. **Tea and coffee are Vorrat; plant milks are Kühlregal.** This follows
+    where Lidl and Edeka shelve them: coffee and tea sit with the dry goods,
+    oat and soy drinks sit next to milk. Ready-to-drink tea (Eistee) is
+    Getränke. Baby food jars and porridge are 👶 Drogerie, like the baby aisle.
+33. **Klopapier stays in Haushalt** (#7 revisited). Toilet paper sits with the
+    paper goods in Lidl and Edeka, and dm shows Haushalt in its view, so
+    untagged toilet paper still appears when shopping at dm.
+34. **Store layouts.** The defaults come from store reports and are documented
+    with sources in `docs/STORE_LAYOUTS.md`. Every store has a row for every
+    category, with a `hidden` flag for categories the store does not carry.
+    dm hides produce, bakery, chilled, meat and frozen. A new category goes
+    after the last shown category in each store, or just before Sonstiges
+    when Sonstiges is the last shown one.
+35. **Store views.** A store view shows the items tagged to that store plus
+    the untagged ones, in the store's order. An untagged item in a category
+    the store hides is left out. A footer counts these items and can show
+    them. An item tagged to the store always shows. Items tagged to another
+    store never show.
+36. **Item→store memory.** It is learned from two things. Ticking an item off
+    inside a store view tags the item with that store. Choosing a store in
+    the edit sheet tags it by hand. Both write `items.store_id`, and the
+    trigger records it, latest wins. A new item with no store gets the
+    remembered store. Setting "Alle Geschäfte" in the edit sheet clears the
+    memory, which means the item can be bought anywhere again. An item typed
+    inside a store view is tagged with that store, so it stays visible where
+    it was typed. Typing it in "Alle" leaves the memory in charge. A consequence: an
+    untagged item ticked off at Lidl is a Lidl item from then on. It no longer
+    shows in the Edeka or dm view until someone retags it in the edit sheet
+    (or sets "Alle Geschäfte").
+37. **The store picker resets to "Alle" on launch.** Planning at home happens
+    in "Alle", and the picker is one tap away in the store. It sits under the
+    add field and never takes focus, so autofocus on open is unchanged.
+38. **Deleting a category moves its items** (active and bought) to a category
+    the user picks, by default Sonstiges, which cannot be deleted. The
+    category's learned corrections go with it. Its seed identity passes to the
+    target (`categories.absorbed_seed_keys`), so dictionary hits for a deleted
+    "Tiefkühl" land where its items went instead of in Sonstiges.
+39. **`add_items` is the shared add path for MCP and Siri** (announced on the
+    job board). Each entry may carry a quantity, which `public.parse_entry`
+    parses with the same rules as the app's `parseEntry`. An entry whose item
+    key is already active returns the existing row instead of a duplicate.
+    `p_store` tags the new items. Without it, the remembered store applies.

@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:family_groceries/app/router.dart';
 import 'package:family_groceries/household/invite_dialog.dart';
 import 'package:family_groceries/l10n/app_localizations.dart';
+import 'package:family_groceries/list/categories_screen.dart';
 import 'package:family_groceries/list/edit_item_sheet.dart';
 import 'package:family_groceries/list/list_cubit.dart';
 import 'package:family_groceries/list/list_repository.dart';
 import 'package:family_groceries/list/model.dart';
+import 'package:family_groceries/list/store_layout_screen.dart';
 import 'package:family_groceries/session/session_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -58,10 +60,16 @@ class _ShoppingListState() extends State<ShoppingList> {
     _lifecycle = AppLifecycleListener(
       onResume: () => unawaited(cubit.resync()),
     );
-    _rejections = cubit.rejections.listen((r) {
-      if (mounted) {
-        _snack(AppLocalizations.of(context).syncFailed(r.itemName));
+    _rejections = cubit.rejections.listen((rejection) {
+      if (!mounted) {
+        return;
       }
+      final l10n = AppLocalizations.of(context);
+      _snack(switch (rejection) {
+        ItemRejected(:final itemName) => l10n.syncFailed(itemName),
+        NameTaken(:final name) => l10n.categoryNameTaken(name),
+        CatalogRejected() => l10n.catalogSaveFailed,
+      });
     });
   }
 
@@ -137,15 +145,21 @@ class _ShoppingListState() extends State<ShoppingList> {
     final result = await showEditItemSheet(
       context,
       item: item,
-      categories: cubit.state.categories,
+      catalog: cubit.state.catalog,
     );
     switch (result) {
-      case EditSaved(:final name, :final quantity, :final categoryId):
+      case EditSaved(
+        :final name,
+        :final quantity,
+        :final categoryId,
+        :final storeId,
+      ):
         cubit.edit(
           item.id,
           name: name,
           quantity: quantity,
           categoryId: categoryId,
+          storeId: storeId,
         );
       case EditDeleted():
         _delete(item);
@@ -212,11 +226,14 @@ class _ShoppingListState() extends State<ShoppingList> {
               ),
             ),
           ),
+          const _StorePicker(),
           Expanded(
             child: BlocBuilder<ListCubit, ListState>(
               builder: (context, state) => _ListBody(
                 state: state,
                 onTick: _tick,
+                onMove: (item, categoryId) =>
+                    context.read<ListCubit>().move(item.id, categoryId),
                 onEdit: (item) => unawaited(_edit(item)),
                 onDelete: _delete,
                 onReadd: _readd,
@@ -229,46 +246,156 @@ class _ShoppingListState() extends State<ShoppingList> {
   }
 }
 
+/// "Alle" plus one chip per store; the list is sorted for the chosen one.
+class const _StorePicker() extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cubit = context.read<ListCubit>();
+    final (stores, filter) = context
+        .select<ListCubit, (List<Store>, StoreFilter)>(
+          (c) => (c.state.catalog.stores, c.state.filter),
+        );
+    if (stores.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final current = switch (filter) {
+      AtStore(:final storeId) =>
+        stores.where((s) => s.id == storeId).firstOrNull,
+      AllStores() => null,
+    };
+    Widget chip(String label, StoreFilter target, {required bool selected}) =>
+        ChoiceChip(
+          label: Text(label),
+          selected: selected,
+          showCheckmark: false,
+          onSelected: (_) => cubit.selectStore(target),
+        );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                spacing: 8,
+                children: [
+                  chip(
+                    l10n.allStores,
+                    const AllStores(),
+                    selected: current == null,
+                  ),
+                  for (final store in stores)
+                    chip(
+                      store.name,
+                      AtStore(store.id),
+                      selected: current?.id == store.id,
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (current != null)
+            IconButton(
+              tooltip: l10n.editStoreLayout,
+              icon: const Icon(Icons.low_priority),
+              onPressed: () => unawaited(openStoreLayout(context, current.id)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class const _ListBody({
   required final ListState state,
   required final ValueChanged<Item> onTick,
   required final ValueChanged<Item> onEdit,
   required final ValueChanged<Item> onDelete,
   required final ValueChanged<Item> onReadd,
-}) extends StatelessWidget {
+  required final void Function(Item item, String categoryId) onMove,
+}) extends StatefulWidget {
+  @override
+  State<_ListBody> createState() => _ListBodyState();
+}
+
+class _ListBodyState() extends State<_ListBody> {
+  /// While an item is dragged, every category is a drop target.
+  var _dragging = false;
+
+  void _setDragging(bool dragging) {
+    if (mounted && _dragging != dragging) {
+      setState(() => _dragging = dragging);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final state = widget.state;
     if (!state.loaded) {
       return const Center(child: CircularProgressIndicator());
     }
     final items = state.items.values;
-    final groups = groupActive(items, state.categories);
+    final grouping = groupActive(
+      items,
+      state.catalog,
+      state.filter,
+      showHidden: state.showHidden,
+      includeEmpty: _dragging,
+    );
+    final storeName = switch (state.filter) {
+      AtStore(:final storeId) => state.catalog.store(storeId)?.name,
+      AllStores() => null,
+    };
     final bought = recentlyBought(items);
     final theme = Theme.of(context);
     return ListView(
       padding: const EdgeInsets.only(bottom: 96),
       children: [
-        if (groups.isEmpty)
+        if (grouping.groups.isEmpty)
           Padding(
             padding: const EdgeInsets.all(32),
             child: Text(
-              l10n.emptyList,
+              storeName == null ? l10n.emptyList : l10n.emptyAtStore(storeName),
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyLarge,
             ),
           ),
-        for (final group in groups) ...[
-          _GroupHeader(group.category?.name ?? l10n.sortingItem),
-          for (final item in group.items)
-            _ItemTile(
-              key: ValueKey(item.id),
-              item: item,
-              onTick: () => onTick(item),
-              onEdit: () => onEdit(item),
-              onDelete: () => onDelete(item),
+        for (final group in grouping.groups)
+          _DropGroup(
+            key: ValueKey(
+              'group-${group.category?.id ?? group.items.first.id}',
             ),
-        ],
+            title: group.category?.name ?? l10n.sortingItem,
+            categoryId: group.category?.id,
+            onMove: widget.onMove,
+            children: [
+              for (final item in group.items)
+                _ItemTile(
+                  key: ValueKey(item.id),
+                  item: item,
+                  onTick: () => widget.onTick(item),
+                  onEdit: () => widget.onEdit(item),
+                  onDelete: () => widget.onDelete(item),
+                  onDragging: _setDragging,
+                ),
+            ],
+          ),
+        if (storeName != null && grouping.hiddenCount > 0)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: TextButton(
+              onPressed: () => context.read<ListCubit>().toggleShowHidden(),
+              child: Text(
+                state.showHidden
+                    ? l10n.hideHiddenItems(grouping.hiddenCount, storeName)
+                    : l10n.showHiddenItems(grouping.hiddenCount, storeName),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
         if (bought.isNotEmpty)
           ExpansionTile(
             title: Text(l10n.recentlyBought),
@@ -284,9 +411,9 @@ class const _ListBody({
                   trailing: IconButton(
                     tooltip: l10n.readd,
                     icon: const Icon(Icons.add),
-                    onPressed: () => onReadd(item),
+                    onPressed: () => widget.onReadd(item),
                   ),
-                  onTap: () => onReadd(item),
+                  onTap: () => widget.onReadd(item),
                 ),
             ],
           ),
@@ -295,11 +422,47 @@ class const _ListBody({
   }
 }
 
+/// A header and its items; for a real category, also a drop target that
+/// moves a dragged item into it.
+class const _DropGroup({
+  required final String title,
+  required final String? categoryId,
+  required final void Function(Item item, String categoryId) onMove,
+  required final List<Widget> children,
+  super.key,
+}) extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final target = categoryId;
+    Widget column({required bool hovered}) => ColoredBox(
+      color: hovered
+          ? Theme.of(context).colorScheme.primaryContainer
+          : Colors.transparent,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [_GroupHeader(title), ...children],
+      ),
+    );
+    if (target == null) {
+      return column(hovered: false);
+    }
+    return DragTarget<Item>(
+      onWillAcceptWithDetails: (details) => details.data.categoryId != target,
+      onAcceptWithDetails: (details) => onMove(details.data, target),
+      builder: (context, candidates, _) =>
+          column(hovered: candidates.isNotEmpty),
+    );
+  }
+}
+
 class const _GroupHeader(final String title) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Its own node: a group is one list child, and without a container the
+    // header merges into the first item's button.
     return Semantics(
+      container: true,
       header: true,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -319,10 +482,35 @@ class const _ItemTile({
   required final VoidCallback onTick,
   required final VoidCallback onEdit,
   required final VoidCallback onDelete,
+  required final ValueChanged<bool> onDragging,
   super.key,
 }) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Its own node, so a group's only item does not become the parent of
+    // the group heading.
+    final tile = Semantics(container: true, child: _tile(context));
+    // Long press, so scrolling, tapping and swiping keep working.
+    return LongPressDraggable<Item>(
+      data: item,
+      onDragStarted: () => onDragging(true),
+      onDragEnd: (_) => onDragging(false),
+      feedback: Material(
+        elevation: 6,
+        borderRadius: BorderRadius.circular(8),
+        color: theme.colorScheme.surfaceContainerHigh,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Text(item.name, style: theme.textTheme.bodyLarge),
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.4, child: tile),
+      child: tile,
+    );
+  }
+
+  Widget _tile(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final quantity = item.quantity;
     return Dismissible(
@@ -392,6 +580,7 @@ class const _SyncIndicator() extends StatelessWidget {
 }
 
 enum _MenuAction() {
+  categories,
   invite,
   join,
   access,
@@ -406,12 +595,17 @@ class const _Menu({required final Household household})
     return PopupMenuButton<_MenuAction>(
       tooltip: l10n.menu,
       onSelected: (action) => unawaited(switch (action) {
+        _MenuAction.categories => openCategories(context),
         _MenuAction.invite => showInviteDialog(context, household),
         _MenuAction.join => showJoinCodeDialog(context),
         _MenuAction.access => context.push(settingsPath),
         _MenuAction.signOut => context.read<SessionCubit>().signOut(),
       }),
       itemBuilder: (_) => [
+        PopupMenuItem(
+          value: _MenuAction.categories,
+          child: Text(l10n.manageCategories),
+        ),
         PopupMenuItem(
           value: _MenuAction.invite,
           child: Text(l10n.inviteMember),

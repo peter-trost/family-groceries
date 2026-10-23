@@ -9,7 +9,7 @@ import 'package:uuid/uuid.dart';
 
 @immutable
 class const ListState({
-  final List<Category> categories = const [],
+  final Catalog catalog = const Catalog(),
 
   /// Rows as last confirmed by the server.
   final Map<String, Item> server = const {},
@@ -18,22 +18,48 @@ class const ListState({
   final List<ItemOp> pending = const [],
   final bool loaded = false,
   final ConnectionStatus connection = ConnectionStatus.connecting,
+
+  /// Starts at "Alle" on every launch.
+  final StoreFilter filter = const AllStores(),
+
+  /// Whether the store view also shows untagged items in categories the
+  /// store does not carry.
+  final bool showHidden = false,
 }) {
   Map<String, Item> get items => visibleItems(server, pending);
 
+  /// The store being shopped at, or null for "Alle".
+  String? get storeId => switch (filter) {
+    AtStore(:final storeId) => storeId,
+    AllStores() => null,
+  };
+
   ListState copyWith({
-    List<Category>? categories,
+    Catalog? catalog,
     Map<String, Item>? server,
     List<ItemOp>? pending,
     bool? loaded,
     ConnectionStatus? connection,
-  }) => ListState(
-    categories: categories ?? this.categories,
-    server: server ?? this.server,
-    pending: pending ?? this.pending,
-    loaded: loaded ?? this.loaded,
-    connection: connection ?? this.connection,
-  );
+    StoreFilter? filter,
+    bool? showHidden,
+  }) {
+    final next = ListState(
+      catalog: catalog ?? this.catalog,
+      server: server ?? this.server,
+      pending: pending ?? this.pending,
+      loaded: loaded ?? this.loaded,
+      connection: connection ?? this.connection,
+      filter: filter ?? this.filter,
+      showHidden: showHidden ?? this.showHidden,
+    );
+    // A store that disappeared from the catalog falls back to "Alle".
+    return switch (next.filter) {
+      AtStore(:final storeId)
+          when next.loaded && next.catalog.store(storeId) == null =>
+        next.copyWith(filter: const AllStores(), showHidden: false),
+      _ => next,
+    };
+  }
 }
 
 sealed class const AddResult();
@@ -44,9 +70,15 @@ final class const AlreadyOnList(final Item item) extends AddResult;
 
 final class const NothingToAdd() extends AddResult;
 
-/// An op the server refused; the UI tells the user.
-@immutable
-class const Rejected(final String itemName, final String message);
+/// A write the server refused; the UI tells the user.
+sealed class const Rejected();
+
+final class const ItemRejected(final String itemName) extends Rejected;
+
+final class const NameTaken(final String name) extends Rejected;
+
+/// A category or layout change did not save; the catalog was reloaded.
+final class const CatalogRejected() extends Rejected;
 
 class ListCubit(final ListRepository _repo, {DateTime Function()? clock})
     extends Cubit<ListState> {
@@ -56,6 +88,7 @@ class ListCubit(final ListRepository _repo, {DateTime Function()? clock})
   final _rejections = StreamController<Rejected>.broadcast();
   Future<void> Function()? _unwatch;
   Timer? _retry;
+  Timer? _catalogReload;
   var _flushing = false;
 
   /// Rows acknowledged while a resync is in flight; they beat its snapshot.
@@ -71,7 +104,14 @@ class ListCubit(final ListRepository _repo, {DateTime Function()? clock})
           _setServer({...state.server}..remove(id));
         }
       },
-      onCategoriesChanged: () => unawaited(_reloadCategories()),
+      // A reorder fires one event per row; reload once they settle.
+      onCatalogChanged: () {
+        _catalogReload?.cancel();
+        _catalogReload = Timer(
+          const Duration(milliseconds: 200),
+          () => unawaited(_reloadCatalog()),
+        );
+      },
       onStatus: (status) {
         emit(state.copyWith(connection: status));
         if (status == ConnectionStatus.online) {
@@ -99,6 +139,8 @@ class ListCubit(final ListRepository _repo, {DateTime Function()? clock})
       id: const Uuid().v4(),
       name: entry.name,
       quantity: entry.quantity,
+      // Typed in a store view, it belongs there and stays visible.
+      storeId: state.storeId,
       status: ItemStatus.active,
       createdAt: now,
       updatedAt: now,
@@ -107,7 +149,9 @@ class ListCubit(final ListRepository _repo, {DateTime Function()? clock})
     return Added(item);
   }
 
-  void tick(String id) => _enqueue(SetStatus(id, ItemStatus.bought, _clock()));
+  void tick(String id) => _enqueue(
+    SetStatus(id, ItemStatus.bought, _clock(), storeId: state.storeId),
+  );
 
   void untick(String id) =>
       _enqueue(SetStatus(id, ItemStatus.active, _clock()));
@@ -117,9 +161,18 @@ class ListCubit(final ListRepository _repo, {DateTime Function()? clock})
     required String name,
     required String? quantity,
     required String categoryId,
+    required String? storeId,
   }) => _enqueue(
-    EditItem(id, name: name, quantity: quantity, categoryId: categoryId),
+    EditItem(
+      id,
+      name: name,
+      quantity: quantity,
+      categoryId: categoryId,
+      storeId: storeId,
+    ),
   );
+
+  void move(String id, String categoryId) => _enqueue(MoveItem(id, categoryId));
 
   void delete(String id) => _enqueue(DeleteItem(id));
 
@@ -128,11 +181,77 @@ class ListCubit(final ListRepository _repo, {DateTime Function()? clock})
     AddItem(item.copyWith(status: ItemStatus.active, boughtAt: () => null)),
   );
 
+  void selectStore(StoreFilter filter) =>
+      emit(state.copyWith(filter: filter, showHidden: false));
+
+  void toggleShowHidden() =>
+      emit(state.copyWith(showHidden: !state.showHidden));
+
+  Future<void> renameCategory(String id, String name) => _changeCatalog(
+    state.catalog.withName(id, name),
+    () => _repo.renameCategory(id, name),
+    name: name,
+  );
+
+  Future<void> createCategory(String name) =>
+      _changeCatalog(null, () => _repo.createCategory(name), name: name);
+
+  Future<void> reorderCategories(List<String> ids) => _changeCatalog(
+    state.catalog.withRouteOrder(ids),
+    () => _repo.reorderCategories(ids),
+  );
+
+  /// Items move on the server; a resync brings them over.
+  Future<void> deleteCategory(String id, {String? reassignTo}) async {
+    await _changeCatalog(
+      null,
+      () => _repo.deleteCategory(id, reassignTo: reassignTo),
+    );
+    await resync();
+  }
+
+  Future<void> setStoreLayout(
+    String storeId,
+    List<String> orderedIds,
+    Set<String> hiddenIds,
+  ) => _changeCatalog(
+    state.catalog.withStoreLayout(storeId, orderedIds, hiddenIds),
+    () => _repo.setStoreLayout(storeId, orderedIds, hiddenIds),
+  );
+
+  /// Shows [optimistic] at once, writes, then reloads the catalog. A failed
+  /// write is reported, and the reload puts the server's state back.
+  Future<void> _changeCatalog(
+    Catalog? optimistic,
+    Future<void> Function() write, {
+    String? name,
+  }) async {
+    if (optimistic != null) {
+      emit(state.copyWith(catalog: optimistic));
+    }
+    try {
+      await write();
+    } on RejectedOp catch (e) {
+      _report(
+        e.nameTaken && name != null ? NameTaken(name) : const CatalogRejected(),
+      );
+    } on Object {
+      _report(const CatalogRejected());
+    }
+    await _reloadCatalog();
+  }
+
+  void _report(Rejected rejection) {
+    if (!_rejections.isClosed) {
+      _rejections.add(rejection);
+    }
+  }
+
   Future<void> resync() async {
     _ackedDuringResync = {};
     try {
-      final (categories, rows) = await (
-        _repo.fetchCategories(),
+      final (catalog, rows) = await (
+        _repo.fetchCatalog(),
         _repo.fetchItems(),
       ).wait;
       final snapshot = {for (final row in rows) row.id: row};
@@ -143,9 +262,7 @@ class ListCubit(final ListRepository _repo, {DateTime Function()? clock})
           snapshot[key] = value;
         }
       }
-      emit(
-        state.copyWith(categories: categories, server: snapshot, loaded: true),
-      );
+      emit(state.copyWith(catalog: catalog, server: snapshot, loaded: true));
     } on Object {
       _goOffline();
     } finally {
@@ -154,9 +271,9 @@ class ListCubit(final ListRepository _repo, {DateTime Function()? clock})
     unawaited(_flush());
   }
 
-  Future<void> _reloadCategories() async {
+  Future<void> _reloadCatalog() async {
     try {
-      emit(state.copyWith(categories: await _repo.fetchCategories()));
+      emit(state.copyWith(catalog: await _repo.fetchCatalog()));
     } on Object {
       _goOffline();
     }
@@ -177,9 +294,9 @@ class ListCubit(final ListRepository _repo, {DateTime Function()? clock})
         final op = state.pending.first;
         try {
           _ack(op, await _repo.send(op));
-        } on RejectedOp catch (e) {
+        } on RejectedOp {
           _drop(op);
-          _rejections.add(Rejected(_nameOf(op), e.message));
+          _report(ItemRejected(_nameOf(op)));
           unawaited(resync());
         } on Object {
           _goOffline();
@@ -239,6 +356,7 @@ class ListCubit(final ListRepository _repo, {DateTime Function()? clock})
   @override
   Future<void> close() async {
     _retry?.cancel();
+    _catalogReload?.cancel();
     await _unwatch?.call();
     await _rejections.close();
     await super.close();

@@ -1,6 +1,7 @@
 # Done summary
 
 - Job 1b, Sign in with Google and Apple: [docs/done/01b.md](docs/done/01b.md)
+- Job 2, classifier and stores: [docs/done/02.md](docs/done/02.md)
 
 ## Job 1: foundation (2026-10-22)
 

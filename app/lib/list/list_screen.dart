@@ -26,12 +26,20 @@ class const ListScreen({
   /// Overrides the Supabase repository, for tests.
   final ListRepository? repository,
 }) extends StatelessWidget {
+  static final Dictation? _dictation = dictationFor(
+    defaultTargetPlatform,
+    web: kIsWeb,
+  );
+
   /// Only iOS and Android recognize speech on the device; elsewhere typing
   /// is the way in.
-  static final Dictation? _dictation =
-      !kIsWeb &&
-          (defaultTargetPlatform == TargetPlatform.iOS ||
-              defaultTargetPlatform == TargetPlatform.android)
+  @visibleForTesting
+  static Dictation? dictationFor(
+    TargetPlatform platform, {
+    required bool web,
+  }) =>
+      !web &&
+          (platform == TargetPlatform.iOS || platform == TargetPlatform.android)
       ? DeviceDictation()
       : null;
 

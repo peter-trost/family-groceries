@@ -323,6 +323,13 @@ Android compile jobs in CI. On the first build on your phone:
    among the keyboards (iOS downloads the model). Android: Einstellungen ›
    System › Sprachen › Spracheingabe (Google) › Offline-Spracherkennung ›
    Deutsch. Then try again.
+3. Which phones can dictate: iPhones with iOS 13 or later and the German
+   model; Android 12 (API 31) or later with Google's on-device recognizer.
+   Android 11 and older always show the message above, because they have
+   no on-device recognizer the app can require. On Android 12 the app can't
+   ask for the language in advance, so a phone without offline German shows
+   the message once you start speaking; please try that too if you have
+   such a phone.
 
 ## Job 4: release
 

@@ -239,10 +239,12 @@ export const lifecycleCommands: Command[] = [
       ) {
         if (!(await has(bin))) apt.push(pkg);
       }
-      if ((await ctx.sh.run(['pkg-config', '--exists', 'gtk+-3.0'])).code !== 0) {
+      // Without pkg-config (a fresh box) the GTK check can't run; plan the headers too.
+      if (apt.includes('pkg-config') || (await ctx.sh.run(['pkg-config', '--exists', 'gtk+-3.0'])).code !== 0) {
         apt.push('libgtk-3-dev', 'liblzma-dev', 'libstdc++-14-dev');
       }
-      if (surface === 'android' && !(await has('java'))) apt.push('openjdk-21-jdk-headless');
+      // The linux build needs a JVM too: shared_preferences_android's jni plugin links libjvm.so.
+      if (!(await has('java'))) apt.push('openjdk-21-jdk-headless');
       if (apt.length) {
         await ctx.act(
           `sudo apt-get install -y ${apt.join(' ')}`,

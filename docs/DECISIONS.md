@@ -661,7 +661,10 @@ Numbered 3.x so parallel jobs don't collide. Details and sources: `docs/MCP.md`.
       fake OIDC port) for social-sign-in, and one worker locally (3b.4).
 4b.7. **merge-pr.sh ends the squashed message with Peter's trailer**
       (COMMON.md: every commit message ends with it) and re-squashes a head
-      that doesn't. Before, the Claude trailer came last.
+      that doesn't. Before, the Claude trailer came last. The Claude line
+      names the model that does the work (Claude Opus 5.5 here); COMMON.md
+      requires only Peter's line, so a later job on another model updates
+      `TRAILERS` in the script.
 4b.8. **The ops DONE_SUMMARY.md is a copy of `docs/done/<job>.md`**
       (COORDINATION.md), byte for byte; the root `DONE_SUMMARY.md` only links
       it. Job 4's repo copy gained the "Merged as PR #10" line its ops copy

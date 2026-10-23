@@ -60,6 +60,19 @@ void main() {
   String fieldText(WidgetTester tester) =>
       tester.widget<TextField>(addField()).controller!.text;
 
+  test('the microphone exists on iOS and Android apps only', () {
+    for (final platform in TargetPlatform.values) {
+      final mobile =
+          platform == TargetPlatform.iOS || platform == TargetPlatform.android;
+      expect(
+        ListScreen.dictationFor(platform, web: false),
+        mobile ? isA<DeviceDictation>() : isNull,
+        reason: '$platform',
+      );
+      expect(ListScreen.dictationFor(platform, web: true), isNull);
+    }
+  });
+
   testWidgets('no microphone without a recognizer (web)', (tester) async {
     await pumpList(tester, null);
     expect(find.byTooltip('Diktieren'), findsNothing);

@@ -180,3 +180,21 @@ Deno.test('confirmation lists only what was said back', () => {
     'Hinzugefügt: 1 kg Mehl, Eier.',
   );
 });
+
+Deno.test('more than thirty items: the first thirty are added and Siri says so', async () => {
+  const { handle, calls } = fakeDeps();
+  const sentence = Array.from({ length: 40 }, (_, i) => `Ding${i}`).join(', ');
+  const res = await handle(post({ text: sentence }));
+  const body = await res.json();
+  assertEquals(calls[0].length, 30);
+  assertEquals(body.truncated, true);
+  assertMatch(body.speech, /Mehr als dreißig auf einmal gehen nicht/);
+});
+
+Deno.test('thirty items exactly are not reported as cut', async () => {
+  const { handle } = fakeDeps();
+  const sentence = Array.from({ length: 30 }, (_, i) => `Ding${i}`).join(', ');
+  const body = await (await handle(post({ text: sentence }))).json();
+  assertEquals(body.truncated, false);
+  assertEquals(body.items.length, 30);
+});

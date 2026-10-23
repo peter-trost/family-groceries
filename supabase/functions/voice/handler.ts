@@ -4,7 +4,7 @@
 // {"text": ..., "mode": "parse"} only splits; the app adds the items itself.
 import { AuthError } from '../_shared/auth.ts';
 import { corsHeaders, json, preflight } from '../_shared/http.ts';
-import { type ParsedItem, parseSentence, spoken } from './parse.ts';
+import { maxItems, type ParsedItem, parseSentence, spoken } from './parse.ts';
 
 export interface Caller {
   userId: string;
@@ -25,6 +25,8 @@ export interface Deps<C extends Caller = Caller> {
 }
 
 export const maxTextLength = 1000;
+
+const tooMany = 'Mehr als dreißig auf einmal gehen nicht; sag den Rest bitte noch einmal.';
 
 const example = 'Sag zum Beispiel: Milch, zwei Gurken und Klopapier.';
 
@@ -116,16 +118,23 @@ export function createHandler<C extends Caller>(deps: Deps<C>) {
     const text = body.text?.trim();
     if (!text) return fail('no_text');
     if (text.length > maxTextLength) return fail('too_long');
-    const items = parseSentence(text);
-    if (!items.length) return fail('nothing_understood');
+    const heard = parseSentence(text, maxItems + 1);
+    if (!heard.length) return fail('nothing_understood');
+    const items = heard.slice(0, maxItems);
+    const truncated = heard.length > maxItems;
+    const cut = truncated ? ` ${tooMany}` : '';
 
     if (body.mode === 'parse') {
-      return reply(200, { speech: `Verstanden: ${items.map(spoken).join(', ')}.`, items });
+      return reply(200, {
+        speech: `Verstanden: ${items.map(spoken).join(', ')}.${cut}`,
+        items,
+        truncated,
+      });
     }
 
     try {
       const added = await deps.addItems(caller, items);
-      return reply(200, { speech: confirmation(added), items: added });
+      return reply(200, { speech: confirmation(added) + cut, items: added, truncated });
     } catch (e) {
       console.error('voice: adding items failed', e);
       return fail('server');

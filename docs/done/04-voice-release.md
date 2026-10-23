@@ -154,3 +154,41 @@ widget tests with a fake recognizer, the endpoint by HTTP tests).
 | 4 | Siri endpoint, in-app dictation, release, final pass | this file |
 
 Open GitHub issues: none (issue #3 is closed by this PR).
+
+## Review 0 fixes (2026-10-23)
+
+Must fix:
+
+1. **A different size or type was swallowed as a duplicate.** After
+   "Windeln Größe 4", saying "Windeln Größe 5" answered "Schon auf der
+   Liste" and added nothing (same for "Mehl Typ 550" after "Typ 405" and
+   "Milch 3,8 %" after "1,5 %"), because `item_key` drops all numbers. New
+   migration `20261023070910_item_name_key.sql` adds `item_name_key`
+   (`item_key` plus the numbers left in the name, decimal comma folded) and
+   `add_items` compares with it; MCP's `add_items` tool does too. `item_key`
+   is unchanged, so the classifier and store memory still group sizes.
+   Proof: a new pgTAP file (12 cases) fails on the old comparison (tests 10
+   and 11) and passes now; a new Playwright case adds Größe 4 and 5 and Typ
+   405 and 550 through Siri and MCP and sees all four, while a repeat of
+   Größe 4 via MCP is still "already on the list".
+
+Nice to have, also done:
+
+- More than 30 items: the first 30 are added and Siri says so; JSON has
+  `truncated`. Handler tests cover 40 and exactly 30.
+- Splitter: hundreds as words ("vierhundert", "zweihundertfünfzig"),
+  "ca./circa/etwa/ungefähr" before an amount, a bare "Einkaufsliste" after
+  "Hey Siri". Seven new table cases.
+- `mcp.spec.ts` retries once (`test.describe.configure`), for the
+  load-induced "Error POSTing to endpoint" drops the reviewer saw.
+- PR #5's screenshot links now point at commit `1177b52` instead of the
+  branch.
+- Noted, not changed: the squash message of #5 on main still mentions the
+  interim auth stand-in; the merged code uses the shared `authenticate()`
+  and `add_items`. History stays as it is.
+- Unchanged by decision: dictation is not forced on-device (DECISIONS,
+  job 4); "-3 Milch" and "null Milch" stay names.
+
+Results after the fixes (local `scripts/verify.sh`, rc 0): gitleaks clean,
+pgTAP 390/390, `db lint` clean, Deno 229 + 3, Flutter analyze clean, Flutter
+156/156, Playwright 46/46.

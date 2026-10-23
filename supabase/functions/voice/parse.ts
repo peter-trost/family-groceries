@@ -48,7 +48,7 @@ const onTheList = cross(
  */
 const leadingFiller = [
   ...words(
-    'hey siri|siri|okay|ok|also|ach ja|ach so|achso|ach|äh|ähm|ehm|hm|hmm|so|ja|dann|' +
+    'hey siri|siri|einkaufsliste|einkaufszettel|okay|ok|also|ca|circa|etwa|ungefähr|ach ja|ach so|achso|ach|äh|ähm|ehm|hm|hmm|so|ja|dann|' +
       'bitte|mal|danke|doch|eben|halt|unbedingt|dringend|mehr|mal sehen|' +
       'wir brauchen|wir bräuchten|ich brauche|ich bräuchte|brauchen|brauche|' +
       'wir haben|wir haben kein|wir haben keine|wir haben keinen|' +
@@ -122,10 +122,6 @@ const numberWords: Record<string, number> = {
   achtzehn: 18,
   neunzehn: 19,
   hundert: 100,
-  einhundert: 100,
-  zweihundert: 200,
-  dreihundert: 300,
-  fünfhundert: 500,
   tausend: 1000,
   eintausend: 1000,
   anderthalb: 1.5,
@@ -250,14 +246,21 @@ function readNumber(token: string): { value: number; glued: string } | null {
   }
   const word = token.toLowerCase();
   const times = word.endsWith('mal') && word !== 'mal' ? word.slice(0, -3) : null;
-  const spoken = numberWords[times ?? word] ??
-    (() => {
-      const compound = /^(ein|zwei|drei|vier|fünf|sechs|sieben|acht|neun)und(\p{L}+)$/u.exec(
-        times ?? word,
-      );
-      return compound && compound[2] in tens ? ones[compound[1]] + tens[compound[2]] : undefined;
-    })();
+  const spoken = numberWord(times ?? word);
   return spoken === undefined ? null : { value: spoken, glued: '' };
+}
+
+/** "zwölf", "fünfundzwanzig", "vierhundert", "zweihundertfünfzig". */
+function numberWord(word: string): number | undefined {
+  if (word in numberWords) return numberWords[word];
+  const one = '(ein|zwei|drei|vier|fünf|sechs|sieben|acht|neun)';
+  const compound = new RegExp(`^${one}und(\\p{L}+)$`, 'u').exec(word);
+  if (compound && compound[2] in tens) return ones[compound[1]] + tens[compound[2]];
+  const hundreds = new RegExp(`^${one}?hundert(\\p{L}*)$`, 'u').exec(word);
+  if (!hundreds) return undefined;
+  const rest = hundreds[2] ? numberWord(hundreds[2]) : 0;
+  if (rest === undefined || rest >= 100) return undefined;
+  return (hundreds[1] ? ones[hundreds[1]] : 1) * 100 + rest;
 }
 
 const formatNumber = (n: number) => String(n).replace('.', ',');
@@ -406,7 +409,7 @@ function segmentsOf(text: string): string[][] {
 }
 
 /** Splits a dictated sentence into items, in the order spoken, without duplicates. */
-export function parseSentence(text: string): ParsedItem[] {
+export function parseSentence(text: string, limit = maxItems): ParsedItem[] {
   const items: ParsedItem[] = [];
   for (const segment of segmentsOf(text)) {
     const read = readPiece(segment);
@@ -417,7 +420,7 @@ export function parseSentence(text: string): ParsedItem[] {
       continue;
     }
     if (items.some((item) => item.name.toLowerCase() === read.name.toLowerCase())) continue;
-    if (items.length === maxItems) break;
+    if (items.length === limit) break;
     items.push({ name: read.name, quantity: read.quantity });
   }
   return items;

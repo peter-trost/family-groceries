@@ -188,6 +188,15 @@ const cases: [string, string[]][] = [
   ['Kilo', ['Kilo']],
   ['500 g', []],
 
+  // From review 0.
+  ['vierhundert Gramm Hack', ['400 g Hack']],
+  ['zweihundertfünfzig Gramm Butter', ['250 g Butter']],
+  ['einhundert Gramm Salami', ['100 g Salami']],
+  ['Käse, ca. 200 g', ['200 g Käse']],
+  ['etwa ein Kilo Kartoffeln', ['1 kg Kartoffeln']],
+  ['Hey Siri Einkaufsliste Milch', ['Milch']],
+  ['Windeln Größe 4, Windeln Größe 5', ['Windeln Größe 4', 'Windeln Größe 5']],
+
   // Compound names stay whole.
   ['Vollmilch', ['Vollmilch']],
   ['griechischer Joghurt', ['Griechischer Joghurt']],

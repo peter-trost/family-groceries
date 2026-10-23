@@ -539,3 +539,62 @@ Numbered 3.x so parallel jobs don't collide. Details and sources: `docs/MCP.md`.
      whatever runs on that port. `supabase/deploy/auth_urls.ts` sets the
      Site URL, the redirect list and the consent path and keeps entries added
      by hand.
+## Job 2b (follow-ups to jobs 2 and 5), 2026-10-23
+
+2b.1. **Bags and brand names have dictionary entries.** `-tüte` and
+      `-beutel` are Haushalt (Mülltüten, Gefriertüten, Zipbeutel); Teebeutel,
+      Windelbeutel and Filtertüten stay where explicit entries put them.
+      Common cleaning and drugstore brands (Somat, Frosch, Lenor, Elmex,
+      Blend-a-med, Penaten) stand for their product. `kleber` is listed so
+      Sekundenkleber stops matching `leber` (Fleisch). Briefmarken stays
+      Sonstiges: stamps have no supermarket aisle, as the dictionary test
+      already said. Kaffeefilter and Filtertüten sit with the coffee
+      (Vorrat), Hustenbonbons with sweets. Found with a sweep of 345 common
+      non-food items through `classify_item`; 45 of the fixes are rows in
+      `supabase/tests/classifier_dictionary.test.sql`.
+2b.2. **The classifier folder has its own `deno.json`.** CI and
+      `scripts/verify.sh` run `deno fmt --check && deno lint && deno test`
+      inside `supabase/classifier`, the same command a developer runs there.
+2b.3. **Screenshots wait for two identical frames.** Flutter animates on
+      its canvas, which Playwright's `animations: 'disabled'` cannot reach.
+      The grey Edeka chip in job 2's `06-store-dm.png` was the chip's
+      deselect animation, not hover: the dm chip was mid fade-in in the same
+      frame. `screenshot()` (e2e helpers) now polls until two frames 100 ms
+      apart agree (2 s cap).
+2b.4. **Each resync keeps its own ack map.** The list opens with two
+      resyncs at once (start, and the channel's first `subscribed`). They
+      shared one nullable map; the first to finish nulled it and the other
+      threw, so the list showed Offline until the next write (3/3 menu joins
+      on the web build, 2/3 creates on the Linux app). A resync that answers
+      now also brings the list back online, but only while the realtime
+      channel is subscribed, so a dead channel still shows Offline.
+2b.5. **No postgrest GET retries.** postgrest 2.9.1 retries each GET three
+      times (1 + 2 + 4 s), invisibly. The session and list cubits already
+      retry every 3 s and writes are idempotent ops retried until acked, so
+      the library retries only delayed an offline cold start (7.7 s to the
+      cached list, 15 s to the Offline indicator; now 0.7 s). The option
+      only reaches `client.rest` (`client.from` builds its query builder
+      without it), so the app reads and writes through `client.rest`.
+2b.6. **e2e tests close the contexts they open.** Specs open one context
+      per user with `browser.newContext()` and the browser lives for the
+      worker, so every earlier test's app kept running: 48 renderers and
+      9.4 GB RSS by the end of a one-worker run. That load was the "OAuth e2e
+      flake" (a consent test waited 34 s for its first page) and much of the
+      box's memory pressure. `e2e/tests/fixtures.ts` extends `test` with an
+      auto fixture that closes them; `conventions.spec.ts` fails if a spec
+      imports `test` from `@playwright/test` directly. mcp.spec's
+      `retries: 1` (job 4) is gone.
+2b.7. **A catalog reload awaits before it reads the state.**
+      `emit(state.copyWith(catalog: await fetch()))` evaluated `state` before
+      the await and wrote the old pending ops and server rows back. An add
+      acked during the fetch came back as pending forever (1 in 20 runs of
+      offline-start), and an op queued during it could vanish unsent.
+2b.8. **The web bootstrap reloads once a boot asset load fails.** Chromium
+      aborts in-flight requests with `ERR_NETWORK_CHANGED` when the host's
+      interfaces change; Chromium declines to make that configurable. One
+      aborted `canvaskit.js` or `main.dart.js` left a blank page with no
+      error. `app/web/flutter_bootstrap.js` reloads, at most twice per tab
+      session (sessionStorage), and catches a failed `main.dart.js` with a
+      capture-phase listener because the loader's callback mode ignores the
+      script tag's error. On this box Docker bridges from other jobs' stacks
+      trigger it; for users a Wi-Fi or VPN switch during load does.

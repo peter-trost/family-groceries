@@ -35,6 +35,7 @@ Preconditions:
 ## Gotchas
 
 - `hh-join-menu` crashed on main until job 04's fix (2026-10-23): a red error screen after "Beitreten". If it comes back, `fg logs --client lea --grep EXCEPTION` names the cause.
+- After a join (or creating a household) the list must not show the crossed-out cloud ("Offline: …"). Until job 2b it stayed there until the first write: two overlapping resyncs shared one map and one threw. Check with `fg wait --contains Offline --gone --timeout 5 --client lea` after `fg wait --text "Familie Test"`.
 - `--as peter` and `--as lea` mean the seeded users, not whoever is signed in on the client of that name.
 - Menus animate open. Tap an entry only after `fg wait --text <entry>`, or the tap can miss.
 - Joining a household leaves the previous one. If the leaver was its last member, that household and its list are deleted. Never run the menu join with the seeded lea or peter unless the recipe restores them (`fg up --fresh`).

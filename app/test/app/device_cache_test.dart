@@ -75,4 +75,39 @@ void main() {
     await cache.list('peter', 'home').save(snapshot);
     expect(await cache.list('peter', 'home').load(), isNull);
   });
+
+  group('seen marks', () {
+    final mark = SeenMark(
+      until: DateTime.utc(2026, 10, 22, 12),
+      ids: const {'a'},
+    );
+
+    test('are kept per user and household', () async {
+      await cache.remember('peter', home);
+      expect(await cache.list('peter', 'home').loadSeen(), isNull);
+      await cache.list('peter', 'home').saveSeen(mark);
+      final back = await cache.list('peter', 'home').loadSeen();
+      expect(back?.until, mark.until);
+      expect(back?.ids, {'a'});
+      expect(await cache.list('lea', 'home').loadSeen(), isNull);
+      expect(await cache.list('peter', 'work').loadSeen(), isNull);
+    });
+
+    test('go with the household and on sign-out', () async {
+      await cache.remember('peter', home);
+      await cache.list('peter', 'home').saveSeen(mark);
+      await cache.remember('peter', home);
+      expect(
+        await cache.list('peter', 'home').loadSeen(),
+        isNotNull,
+        reason: 'remembering the same household keeps it',
+      );
+      await cache.remember('peter', work);
+      expect(await cache.list('peter', 'home').loadSeen(), isNull);
+
+      await cache.list('peter', 'work').saveSeen(mark);
+      await cache.forget();
+      expect(await cache.list('peter', 'work').loadSeen(), isNull);
+    });
+  });
 }

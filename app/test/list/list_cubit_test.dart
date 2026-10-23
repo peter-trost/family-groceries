@@ -139,6 +139,20 @@ void main() {
     expect(cubit.state.connection, ConnectionStatus.offline);
   });
 
+  test('an add acked during a catalog reload survives the reload', () async {
+    repo.catalogGate = Completer();
+    final rename = cubit.renameCategory('produce', 'Obst');
+    await settle();
+    cubit.add('Brot');
+    await settle();
+    expect(cubit.state.pending, isEmpty);
+    repo.catalogGate!.complete();
+    await rename;
+    expect(cubit.state.pending, isEmpty);
+    expect(activeNames(), ['Brot']);
+    expect(cubit.state.catalog.categories.first.name, 'Obst');
+  });
+
   test('a delete can be undone with the same id', () async {
     final item = (cubit.add('Milch') as Added).item;
     await settle();

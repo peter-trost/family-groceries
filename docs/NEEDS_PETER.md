@@ -367,3 +367,18 @@ run them from a clone of the repo.
    upload with "Only releases with status draft may be created on draft
    app", set `gh variable set PLAY_RELEASE_STATUS --env release --body draft`
    and roll the draft out by hand in Play Console until the app leaves draft.
+
+## Job 5: Android verification run
+
+1. **Run the Android surface once on a machine where the emulator works**
+   (your Mac, or a Linux host with working KVM). The build box cannot: a
+   KVM guest there crashes the host kernel (see DECISIONS 5.1), so `fg`
+   drives the Linux desktop build instead. On that machine:
+   `scripts/fg setup --surface android`, then
+   `FG_SURFACE=android scripts/fg up --clients peter,lea`, `scripts/fg doctor`
+   and `.cursor/skills/verify-family-groceries/journeys/quick-add-live-sync.sh`.
+   Those steps have never run end to end (SKILL.md, section "Android").
+2. **Optional, for whoever runs the VM host:** nested KVM on this box oopses
+   in `vmx_vcpu_create` (dmesg, 2026-10-23 05:53–06:03). Once the host is
+   fixed, delete `~/.config/fg/kvm-broken` on the box to re-enable the
+   emulator.

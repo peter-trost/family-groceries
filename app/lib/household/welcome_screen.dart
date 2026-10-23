@@ -54,6 +54,7 @@ class _WelcomeScreenState() extends State<WelcomeScreen> {
     final hasInvite = widget.invite != null;
     final join = [
       TextField(
+        key: const ValueKey('invite-code'),
         controller: _code,
         autofocus: hasInvite,
         textCapitalization: TextCapitalization.characters,
@@ -68,6 +69,7 @@ class _WelcomeScreenState() extends State<WelcomeScreen> {
     ];
     final create = [
       TextField(
+        key: const ValueKey('household-name'),
         controller: _name,
         decoration: InputDecoration(
           labelText: l10n.householdName,

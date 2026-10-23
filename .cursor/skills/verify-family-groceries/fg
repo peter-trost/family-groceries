@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# fg: the verify-family-groceries CLI. `fg help` lists commands; output is JSON.
+set -euo pipefail
+here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+sdk="${ANDROID_HOME:-$HOME/android-sdk}"
+export PATH="$HOME/flutter/bin:$HOME/.pub-cache/bin:$HOME/.deno/bin:$HOME/.local/bin:$sdk/platform-tools:$sdk/emulator:$sdk/cmdline-tools/latest/bin:$PATH"
+exec deno run --quiet --allow-all --config "$here/cli/deno.json" "$here/cli/fg.ts" "$@"

@@ -400,3 +400,50 @@ Numbered 3.x so parallel jobs don't collide. Details and sources: `docs/MCP.md`.
 - **iOS builds are unverified on this box.** Linux cannot run Xcode; the iOS
   lane is checked only by `fastlane lanes` parsing it and by mirroring
   emotely's working lane.
+
+## Job 5 (verification skill), 2026-10-23
+
+5.1. **Primary surface is the Linux desktop debug app, not the Android
+     emulator, on the build box.** Creating a KVM vCPU on this VM hits
+     `kernel BUG at arch/x86/kvm/x86.c:702` (`vmx_vcpu_create`; three oopses,
+     kernel tainted). Retrying risks the shared host, so
+     `~/.config/fg/kvm-broken` records it and `fg` refuses the emulator while
+     the marker exists. The same Flutter app (same widget tree, the same
+     Marionette binding) runs as a Linux desktop window on Xvfb. It is real
+     native Flutter, not a browser. Android stays fully implemented in `fg`
+     for machines with a working emulator and is listed as unverified.
+5.2. **`app/linux/` added** (`flutter create --platforms linux`, application
+     id `com.petertrost.familygroceries`, phone-sized 412×892 window). Needed
+     for 5.1; it also makes the app runnable as a desktop app.
+5.3. **Marionette entrypoint `app/test_driver/main_marionette.dart`;
+     `marionette_flutter` is a dev dependency.** Same pattern as
+     flutter_driver's `test_driver/app.dart`. Code under `lib/` cannot import
+     it (`depend_on_referenced_packages` fails `flutter analyze`). Release
+     builds use `lib/main.dart`; a release `libapp.so` has no Marionette
+     strings (checked). The entrypoint throws if built in release mode.
+5.4. **One CLI (`scripts/fg` → `.cursor/skills/verify-family-groceries/fg`,
+     Deno) instead of markdown recipes.** Deno is already in the toolchain
+     and CI. Commands are one table (help, flags, `--dry-run`, JSON errors
+     generated from it), and every process call goes through an injectable
+     shell, so the CLI's own tests run without a stack (16 tests in CI).
+5.5. **Supabase runs from a generated workdir** (`~/.cache/fg/<prefix>/stack`:
+     config.toml with the port lines and project id rewritten, symlinks to
+     migrations, functions and tests). Parallel agents never edit the tracked
+     `config.toml` to get their own instance.
+5.6. **Seeded users** `peter@fg.test` and `lea@fg.test` (password
+     `test-password-123`, local only) in "Familie Test", created through the app's
+     own RPCs (`create_household`, `create_invite`, `join_household`).
+5.7. **Second client is a second real app** (two Linux instances, about
+     650 MB each) with separate session storage via `XDG_*` dirs. `fg peer`
+     (REST and Realtime as a user) is the light alternative, and the only
+     one when the primary client is the emulator.
+5.8. **Debug builds allow cleartext HTTP**
+     (`app/android/app/src/debug/AndroidManifest.xml`) so the emulator can
+     reach `http://10.0.2.2:<port>`. Release keeps Android's block.
+5.9. **`flutter.inspector.structuredErrors=false` in fg builds.** Otherwise
+     debug builds send Flutter errors only to the VM service, and `fg logs`
+     would show nothing for a red error screen.
+5.10. **Minimal ValueKeys** only where Marionette cannot reach a field by
+      text: `login-email`, `login-password`, `household-name`, `invite-code`,
+      `add-item-field`. Buttons are reached by their text; keyless fields by
+      label (`fg type --label`).

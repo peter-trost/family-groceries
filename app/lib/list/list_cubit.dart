@@ -317,7 +317,9 @@ class ListCubit(
 
   Future<void> _reloadCatalog() async {
     try {
-      emit(state.copyWith(catalog: await _repo.fetchCatalog()));
+      // Await first: `state` read before the await would be stale by now.
+      final catalog = await _repo.fetchCatalog();
+      emit(state.copyWith(catalog: catalog));
     } on Object {
       _goOffline();
     }

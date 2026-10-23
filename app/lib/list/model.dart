@@ -621,36 +621,47 @@ class const SeenMark({
     'ids': [...ids],
   };
 
-  /// Active partner items created after [until], seen or not.
-  Iterable<Item> _candidates(Iterable<Item> visible, String userId) {
+  /// Partner items created after [until], seen or not, ticked or not.
+  Iterable<Item> _after(Iterable<Item> visible, String userId) {
     final since = until;
     return visible.where(
       (i) =>
-          i.status == ItemStatus.active &&
           i.isFromPartner(userId) &&
           (since == null || i.createdAt.isAfter(since)),
     );
   }
 
-  /// Ids of the partner items [userId] has not seen yet.
+  /// Ids of the partner items on the list [userId] has not seen yet.
   Set<String> fresh(Iterable<Item> visible, String userId) => {
-    for (final item in _candidates(visible, userId))
-      if (!ids.contains(item.id)) item.id,
+    for (final item in _after(visible, userId))
+      if (item.status == ItemStatus.active && !ids.contains(item.id)) item.id,
   };
 
-  /// Marks [seenIds] as seen. Once every candidate is seen the mark moves
-  /// [until] past them, so [ids] stays small.
+  /// Marks [seenIds] as seen. Once every partner item on the list is seen,
+  /// [until] moves past them, so [ids] stays small. A seen item keeps its
+  /// id while it is known, so ticking and putting it back is no news.
   SeenMark marking(Set<String> seenIds, Iterable<Item> visible, String userId) {
-    final candidates = _candidates(visible, userId).toList();
-    final current = {for (final item in candidates) item.id};
-    final next = {...ids, ...seenIds}.intersection(current);
-    if (candidates.isNotEmpty && next.length == current.length) {
-      return SeenMark(
-        until: candidates
-            .map((i) => i.createdAt)
-            .reduce((a, b) => a.isAfter(b) ? a : b),
-      );
+    final after = _after(visible, userId).toList();
+    final seen = {
+      ...ids,
+      ...seenIds,
+    }.intersection({for (final item in after) item.id});
+    final active = [
+      for (final item in after)
+        if (item.status == ItemStatus.active) item,
+    ];
+    if (active.isEmpty || !active.every((i) => seen.contains(i.id))) {
+      return SeenMark(until: until, ids: seen);
     }
-    return SeenMark(until: until, ids: next);
+    final next = active
+        .map((i) => i.createdAt)
+        .reduce((a, b) => a.isAfter(b) ? a : b);
+    return SeenMark(
+      until: next,
+      ids: {
+        for (final item in after)
+          if (seen.contains(item.id) && item.createdAt.isAfter(next)) item.id,
+      },
+    );
   }
 }

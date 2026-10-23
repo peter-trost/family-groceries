@@ -319,6 +319,10 @@ void main() {
       item('gone', by: 'lea', at: 9, status: ItemStatus.bought),
     ];
     final baseline = SeenMark(until: DateTime.utc(2026).add(minutes(2)));
+    List<Item> withStatus(String id, ItemStatus status) => [
+      for (final i in items)
+        if (i.id == id) i.copyWith(status: status) else i,
+    ];
 
     test('fresh is what a partner added after the mark', () {
       expect(baseline.fresh(items, 'peter'), {'a', 'b'});
@@ -336,11 +340,25 @@ void main() {
       expect(all.until, DateTime.utc(2026).add(minutes(6)));
     });
 
-    test('ids of items that left the list are pruned', () {
+    test('ids of items that are gone are pruned', () {
       final some = baseline.marking({'a'}, items, 'peter');
       final later = some.marking(const {}, [items[2]], 'peter');
       expect(later.ids, isEmpty);
       expect(later.fresh(items, 'peter'), {'a', 'b'});
+    });
+
+    test('a seen item ticked and put back is no news', () {
+      final seen = baseline.marking({'a'}, items, 'peter');
+      final ticked = withStatus('a', ItemStatus.bought);
+      final afterTick = seen.marking(const {}, ticked, 'peter');
+      expect(afterTick.fresh(items, 'peter'), {'b'});
+    });
+
+    test('an unseen partner item that comes back is news', () {
+      final all = baseline.marking({'a', 'b'}, items, 'peter');
+      expect(all.until, DateTime.utc(2026).add(minutes(6)));
+      final back = withStatus('gone', ItemStatus.active);
+      expect(all.fresh(back, 'peter'), {'gone'});
     });
   });
 

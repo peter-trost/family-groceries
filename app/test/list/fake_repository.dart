@@ -48,6 +48,9 @@ class FakeRepository() implements ListRepository {
   var usuals = <Usual>[];
   var usualsFail = false;
   var usualsCalls = 0;
+
+  /// When set, fetchUsuals waits for it, after the online check.
+  Completer<void>? usualsGate;
   final rows = <String, Item>{};
   final sent = <ItemOp>[];
 
@@ -164,6 +167,7 @@ class FakeRepository() implements ListRepository {
   Future<List<Usual>> fetchUsuals() async {
     usualsCalls++;
     _ensureOnline();
+    await usualsGate?.future;
     if (usualsFail) {
       throw Exception('suggest_items failed');
     }

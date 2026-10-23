@@ -16,6 +16,7 @@ void main() {
     createdAt: at,
     updatedAt: at.add(const Duration(minutes: 1)),
     boughtAt: at.add(const Duration(minutes: 1)),
+    addedBy: 'lea',
   );
   final bread = Item(
     id: 'bread',
@@ -44,6 +45,10 @@ void main() {
           hidden: true,
         ),
       ],
+      members: [
+        Member(id: 'peter', displayName: 'Peter'),
+        Member(id: 'lea', displayName: 'Lea'),
+      ],
     ),
     server: [milk],
     pending: [
@@ -59,6 +64,10 @@ void main() {
       ),
       const MoveItem('bread', 'other'),
       const DeleteItem('milk'),
+    ],
+    usuals: const [
+      Usual(name: 'Gurken', quantity: '2', due: true),
+      Usual(name: 'Brot', due: false),
     ],
   );
 
@@ -82,6 +91,45 @@ void main() {
     expect(back.server.single.boughtAt, milk.boughtAt);
     expect(back.server.single.createdAt.isUtc, isTrue);
     expect(back.pending.first.apply(null)!.createdAt, bread.createdAt);
+    expect(back.server.single.addedBy, 'lea');
+    expect(
+      [for (final m in back.catalog.members) m.displayName],
+      ['Peter', 'Lea'],
+    );
+    expect(
+      [for (final u in back.usuals) (u.name, u.quantity, u.due)],
+      [('Gurken', '2', true), ('Brot', null, false)],
+    );
+  });
+
+  test('a version 1 snapshot loads with its queued ops', () {
+    // As the app before who-added and usuals wrote it.
+    const v1 = '''
+{"version":1,
+ "catalog":{"categories":[{"id":"chilled","name":"Kühlregal","sort_order":30,"seed_key":null}],
+            "stores":[],"layout":[]},
+ "server":[{"id":"milk","name":"Milch","quantity":null,"category_id":"chilled",
+            "store_id":null,"status":"active","created_at":"2026-10-22T12:00:00.000Z",
+            "updated_at":"2026-10-22T12:00:00.000Z","bought_at":null}],
+ "pending":[{"item_id":"bread","op":"add","item":{"id":"bread","name":"Brot",
+              "quantity":"2","category_id":null,"store_id":null,"status":"active",
+              "created_at":"2026-10-22T12:01:00.000Z",
+              "updated_at":"2026-10-22T12:01:00.000Z","bought_at":null}},
+            {"item_id":"milk","op":"status","status":"bought",
+             "at":"2026-10-22T12:02:00.000Z","store_id":null}]}''';
+    final loaded = ListSnapshot.fromJson(
+      jsonDecode(v1) as Map<String, Object?>,
+    );
+    expect(loaded.pending.map((op) => op.runtimeType), [AddItem, SetStatus]);
+    expect(loaded.server.single.addedBy, isNull);
+    expect(loaded.catalog.members, isEmpty);
+    expect(loaded.usuals, isEmpty);
+    final visible = visibleItems({
+      for (final item in loaded.server) item.id: item,
+    }, loaded.pending);
+    expect(visible['bread']!.quantity, '2');
+    expect(visible['milk']!.status, ItemStatus.bought);
+    expect(roundTrip(loaded).toJson(), loaded.toJson());
   });
 
   test('folding the decoded ops shows the same list', () {
@@ -99,11 +147,17 @@ void main() {
     expect(after['bread']!.status, ItemStatus.bought);
   });
 
-  test('another version or an unknown op is refused', () {
+  test('an unknown version or op is refused', () {
     final json = snapshot.toJson();
     expect(
       () => ListSnapshot.fromJson({...json, 'version': 0}),
       throwsFormatException,
+    );
+    expect(
+      () =>
+          ListSnapshot.fromJson({...json, 'version': ListSnapshot.version + 1}),
+      throwsFormatException,
+      reason: 'a downgraded app cannot read a newer snapshot',
     );
     expect(
       () => ItemOp.fromJson({'item_id': 'x', 'op': 'teleport'}),

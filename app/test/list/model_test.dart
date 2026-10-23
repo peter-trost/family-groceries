@@ -8,6 +8,7 @@ Item item(
   ItemStatus status = ItemStatus.active,
   int at = 0,
   int updated = 0,
+  String? by,
 }) => Item(
   id: id,
   name: id,
@@ -19,7 +20,10 @@ Item item(
   boughtAt: status == ItemStatus.bought
       ? DateTime.utc(2026).add(Duration(minutes: at))
       : null,
+  addedBy: by,
 );
+
+Duration minutes(int n) => Duration(minutes: n);
 
 void main() {
   const categories = [
@@ -287,5 +291,82 @@ void main() {
       item('active'),
     ]);
     expect([for (final i in bought) i.id], ['new', 'old']);
+  });
+
+  test('a badge is the first letter, two when another member shares it', () {
+    const catalog = Catalog(
+      members: [
+        Member(id: 'p', displayName: 'peter'),
+        Member(id: 'l', displayName: 'Lea'),
+        Member(id: 'l2', displayName: 'Lars'),
+        Member(id: 'x', displayName: ' '),
+      ],
+    );
+    expect(
+      [for (final m in catalog.members) catalog.initialOf(m)],
+      ['P', 'Le', 'La', '?'],
+    );
+    expect(catalog.member('unknown'), isNull);
+  });
+
+  group('seen mark', () {
+    final items = [
+      item('old', by: 'lea', at: 1),
+      item('a', by: 'lea', at: 5),
+      item('b', by: 'lea', at: 6),
+      item('mine', by: 'peter', at: 7),
+      item('pending', at: 8),
+      item('gone', by: 'lea', at: 9, status: ItemStatus.bought),
+    ];
+    final baseline = SeenMark(until: DateTime.utc(2026).add(minutes(2)));
+
+    test('fresh is what a partner added after the mark', () {
+      expect(baseline.fresh(items, 'peter'), {'a', 'b'});
+      expect(const SeenMark().fresh(items, 'peter'), {'old', 'a', 'b'});
+      expect(baseline.fresh(items, 'lea'), {'mine'});
+    });
+
+    test('marking some keeps their ids, marking all moves the mark', () {
+      final some = baseline.marking({'a', 'mine'}, items, 'peter');
+      expect(some.fresh(items, 'peter'), {'b'});
+      expect(some.ids, {'a'});
+      final all = some.marking({'b'}, items, 'peter');
+      expect(all.fresh(items, 'peter'), isEmpty);
+      expect(all.ids, isEmpty);
+      expect(all.until, DateTime.utc(2026).add(minutes(6)));
+    });
+
+    test('ids of items that left the list are pruned', () {
+      final some = baseline.marking({'a'}, items, 'peter');
+      final later = some.marking(const {}, [items[2]], 'peter');
+      expect(later.ids, isEmpty);
+      expect(later.fresh(items, 'peter'), {'a', 'b'});
+    });
+  });
+
+  test('suggestions match whole names first, then word starts', () {
+    const usuals = [
+      Usual(name: 'Bio-Milch', due: false),
+      Usual(name: 'Hafermilch', due: false),
+      Usual(name: 'Milch', due: true),
+      Usual(name: 'Käse', due: true),
+      Usual(name: 'Brot', due: true),
+    ];
+    List<String> names(List<Usual> list) => [for (final u in list) u.name];
+    expect(names(suggestUsuals(usuals, const [], ' MILCH ')), [
+      'Milch',
+      'Bio-Milch',
+    ]);
+    expect(names(suggestUsuals(usuals, const [], 'kae')), ['Käse']);
+    expect(names(suggestUsuals(usuals, const [], 'Kä')), ['Käse']);
+    expect(suggestUsuals(usuals, const [], '  '), isEmpty);
+    final brot = Item(
+      id: 'x',
+      name: 'brot',
+      status: ItemStatus.active,
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026),
+    );
+    expect(names(dueUsuals(usuals, [brot])), ['Milch', 'Käse']);
   });
 }

@@ -469,6 +469,19 @@ void main() {
       expect(cubit.state.usuals, hasLength(8));
     });
 
+    test('an add made while they load survives the refresh', () async {
+      repo.usualsGate = Completer();
+      unawaited(cubit.resync());
+      await settle();
+      final id = (cubit.add('Brot') as Added).item.id;
+      await settle();
+      expect(repo.rows, contains(id));
+      repo.usualsGate!.complete();
+      await settle();
+      expect(activeNames(), ['Brot']);
+      expect(cubit.state.pending, isEmpty);
+    });
+
     test('they refresh once the list settles after a change', () async {
       final before = repo.usualsCalls;
       final id = (cubit.add('Brot') as Added).item.id;

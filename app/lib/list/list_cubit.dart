@@ -370,7 +370,8 @@ class ListCubit(
   /// A failure keeps the usuals there are; it says nothing about the list.
   Future<void> _refreshUsuals() async {
     try {
-      emit(state.copyWith(usuals: await _repo.fetchUsuals()));
+      final usuals = await _repo.fetchUsuals();
+      emit(state.copyWith(usuals: usuals));
     } on Object {
       return;
     }

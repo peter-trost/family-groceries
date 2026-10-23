@@ -139,6 +139,10 @@ jobs:
         run: npx playwright test
         env:
           SCREENSHOT_DIR: ${{ github.workspace }}/e2e/screenshots
+      # Job 4b: a 503 from an Edge Function comes from the edge runtime, whose log says why.
+      - name: Edge runtime log
+        if: failure()
+        run: docker logs "$(docker ps -qf name=supabase_edge_runtime)" 2>&1 | tail -n 300
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

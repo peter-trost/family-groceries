@@ -74,6 +74,9 @@ test('a member of another household joins with a code from the menu', async ({ b
 
   await expect(itemRow(lea, 'Kaffee'), 'the joiner sees the new household\'s list').toBeVisible();
   await expect(itemRow(lea, 'Tee'), 'the old list is gone').toHaveCount(0);
+  // Both opening resyncs have answered by now; a lost race shows Offline.
+  await lea.waitForTimeout(1_000);
+  await expect(lea.getByText(/^Offline:/), 'the new list is online').toHaveCount(0);
   await addItem(lea, 'Brot');
   await expect(itemRow(peter, 'Brot'), 'and both now share one list').toBeVisible();
   expect(errors, 'no Flutter errors on the way').toEqual([]);

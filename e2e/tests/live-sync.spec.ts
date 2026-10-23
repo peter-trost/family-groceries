@@ -52,6 +52,33 @@ test('an invite link takes a new user through sign-up straight into the househol
   await expect(itemRow(lea, 'Kaffee')).toBeVisible();
 });
 
+test('a member of another household joins with a code from the menu', async ({ browser }) => {
+  const peter = await (await browser.newContext()).newPage();
+  const lea = await (await browser.newContext()).newPage();
+  const errors: string[] = [];
+  lea.on('pageerror', (e) => errors.push(e.message));
+  lea.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  await signUpWithHousehold(peter, newEmail('peter'));
+  await addItem(peter, 'Kaffee');
+  const code = await createInviteCode(peter);
+  await signUpWithHousehold(lea, newEmail('lea'));
+  await addItem(lea, 'Tee');
+
+  await lea.getByRole('button', { name: 'Menü' }).click();
+  await lea.getByRole('menuitem', { name: 'Anderem Haushalt beitreten' }).click();
+  await typeInto(lea.getByRole('textbox', { name: 'Einladungscode' }), code.toLowerCase());
+  await lea.getByRole('button', { name: 'Beitreten' }).click();
+  await expect(lea, 'the code goes to the confirm screen').toHaveURL(new RegExp(`/join/${code}$`));
+  await screenshot(lea, '07-join-confirm');
+  await lea.getByRole('button', { name: 'Beitreten' }).click();
+
+  await expect(itemRow(lea, 'Kaffee'), 'the joiner sees the new household\'s list').toBeVisible();
+  await expect(itemRow(lea, 'Tee'), 'the old list is gone').toHaveCount(0);
+  await addItem(lea, 'Brot');
+  await expect(itemRow(peter, 'Brot'), 'and both now share one list').toBeVisible();
+  expect(errors, 'no Flutter errors on the way').toEqual([]);
+});
+
 test('a tick made while offline syncs when the connection returns', async ({ browser }) => {
   const peterContext = await browser.newContext();
   const peter = await peterContext.newPage();

@@ -650,9 +650,11 @@ Numbered 3.x so parallel jobs don't collide. Details and sources: `docs/MCP.md`.
       ignores `postgrestOptions.retryEnabled` (supabase 2.16.5), so the
       session's household lookup and the list fetches each took about 7 s to
       fail. Now SessionCubit opens the device's household before it asks the
-      server, and the list reads and the household lookup use
-      `.retry(enabled: false)`: ListCubit and SessionCubit retry on their own
-      every 3 s. After: list 0.5 s, banner 0.6 s after an offline reload.
+      server. The retries themselves are off through 02b's change (reads go
+      through `client.rest` with `retryEnabled: false`, 2b's decisions); this
+      branch had used `.retry(enabled: false)` per read and dropped it on
+      rebase. ListCubit and SessionCubit retry on their own every 3 s.
+      After: list 0.5 s, banner 0.6 s after an offline reload.
 4b.6. **Review 1's three e2e failures had one trigger.** The run (09:27 to
       09:37) was frozen by mem-guard from 09:30:38 to 09:35:04 (SIGSTOP,
       `mem-guard.log`), and with 3 workers exactly three tests were in

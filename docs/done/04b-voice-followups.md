@@ -63,8 +63,10 @@ Decisions are in `docs/DECISIONS.md` under "Job 4b".
      about 7 s to fail: the cached list appeared 7.6 s after an offline
      reload and "Offline:" 7.3 s later, against 10 s expect windows.
    - Fix: SessionCubit opens the device's household before it asks the
-     server, and the list reads and the household lookup use
-     `.retry(enabled: false)` (both cubits retry on their own every 3 s).
+     server. 02b found the same retry cause and turned the retries off
+     (reads through `client.rest`, #16); this branch is rebased on that and
+     dropped its own per-read `.retry(enabled: false)`. Both cubits retry
+     on their own every 3 s.
      After: list 0.5 s, banner 0.6 s after an offline reload; the test went
      from 28 s to 9 s. Unit test: "a cached household opens before the
      server is asked" fails on the old code.

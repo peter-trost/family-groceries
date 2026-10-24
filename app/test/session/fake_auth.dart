@@ -57,7 +57,7 @@ class FakeClient(final FakeAuth fakeAuth, {final void Function()? onQuery})
   GoTrueClient get auth => fakeAuth;
 
   @override
-  SupabaseQueryBuilder from(String table) {
+  PostgrestClient get rest {
     onQuery?.call();
     throw const SocketException('offline');
   }

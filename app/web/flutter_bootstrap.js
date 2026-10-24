@@ -5,6 +5,7 @@
 // leave a blank page; reload instead, at most twice per tab session.
 const bootRetries = 'fg-boot-retries';
 function retryBoot(error) {
+  console.error('Flutter boot failed:', error);
   const tries = Number(sessionStorage.getItem(bootRetries) ?? 0);
   if (tries >= 2) throw error;
   sessionStorage.setItem(bootRetries, String(tries + 1));

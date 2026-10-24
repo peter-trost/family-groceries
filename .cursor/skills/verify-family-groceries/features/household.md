@@ -35,6 +35,7 @@ Preconditions:
 ## Gotchas
 
 - `hh-join-menu` crashed on main until job 04's fix (2026-10-23): a red error screen after "Beitreten". If it comes back, `fg logs --client lea --grep EXCEPTION` names the cause.
+- The release web build (the e2e tests, Vercel) strips Flutter's debug asserts, so the old join crash ("TextEditingController was used after being disposed", `_dependents.isEmpty`) never shows there. Only the debug app (fg) and `app/test/household/join_code_dialog_test.dart` catch that class of bug.
 - After a join (or creating a household) the list must not show the crossed-out cloud ("Offline: …"). Until job 2b it stayed there until the first write: two overlapping resyncs shared one map and one threw. Check with `fg wait --contains Offline --gone --timeout 5 --client lea` after `fg wait --text "Familie Test"`.
 - `--as peter` and `--as lea` mean the seeded users, not whoever is signed in on the client of that name.
 - Menus animate open. Tap an entry only after `fg wait --text <entry>`, or the tap can miss.

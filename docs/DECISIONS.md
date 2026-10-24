@@ -607,3 +607,18 @@ Numbered 3.x so parallel jobs don't collide. Details and sources: `docs/MCP.md`.
       "tenant terminated: rebalancing"). `watch()` now reports that event as
       online, which resyncs. `realtime_client` already turns a `system`
       error into `channelError`, which shows Offline.
+2b.10. **The list resubscribes a channel the server closed.**
+      `realtime_client` rejoins a channel after an error or timeout, but not
+      after the server closes it (`phx_close`, sent when the local Realtime
+      terminates its tenant for "rebalancing"). The list then showed Offline
+      and missed changes until restart (review 0 reproduced it once under
+      load; an e2e test that injects `phx_close` failed every time). The
+      cubit now subscribes again while the channel is down (3 s, doubling to
+      30 s, reset once live) and ignores callbacks from a replaced channel.
+      A dropped socket already recovered through the library's reconnect;
+      an e2e test keeps that covered too.
+2b.11. **No generic `karte`.** It made "Schokokarte" Haushalt. Cards are
+      listed explicitly (Geburtstagskarte, Glückwunschkarte), "Chipstüte"
+      is sweets ahead of `tüte`, and "Spüli" is Haushalt. pgTAP rows guard
+      food compounds next to the short terms (Kartoffelsalat, Fanta,
+      Chipstüte, Schokokarte).

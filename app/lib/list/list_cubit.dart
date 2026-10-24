@@ -81,10 +81,13 @@ final class const NameTaken(final String name) extends Rejected;
 /// A category or layout change did not save; the catalog was reloaded.
 final class const CatalogRejected() extends Rejected;
 
+const _maxResubscribe = Duration(seconds: 30);
+
 class ListCubit(
   final ListRepository _repo,
   final ListCache _cache, {
   DateTime Function()? clock,
+  Duration resubscribeAfter = const Duration(seconds: 3),
 }) extends Cubit<ListState> {
   this : super(const ListState());
 
@@ -103,6 +106,17 @@ class ListCubit(
   /// Whether the realtime channel is subscribed. A resync that answers only
   /// brings the list back online while it is.
   var _channelUp = false;
+
+  /// A channel the server closed is never rejoined by the client library,
+  /// so the list subscribes again itself: after `resubscribeAfter`, doubling
+  /// up to 30 s while it stays down.
+  final _firstResubscribe = resubscribeAfter;
+  late var _resubscribeDelay = _firstResubscribe;
+  Timer? _resubscribe;
+
+  /// Bumped on every subscribe, so a replaced channel's late callbacks are
+  /// ignored.
+  var _watchGeneration = 0;
 
   Stream<Rejected> get rejections => _rejections.stream;
 
@@ -124,15 +138,29 @@ class ListCubit(
     if (isClosed) {
       return;
     }
+    _watch();
+    unawaited(resync());
+  }
+
+  void _watch() {
+    final generation = ++_watchGeneration;
+    bool current() => generation == _watchGeneration && !isClosed;
     _unwatch = _repo.watch(
-      onItem: (row) => _setServer(mergeServerRow(state.server, row)),
+      onItem: (row) {
+        if (current()) {
+          _setServer(mergeServerRow(state.server, row));
+        }
+      },
       onItemDeleted: (id) {
-        if (state.server.containsKey(id)) {
+        if (current() && state.server.containsKey(id)) {
           _setServer({...state.server}..remove(id));
         }
       },
       // A reorder fires one event per row; reload once they settle.
       onCatalogChanged: () {
+        if (!current()) {
+          return;
+        }
         _catalogReload?.cancel();
         _catalogReload = Timer(
           const Duration(milliseconds: 200),
@@ -140,15 +168,40 @@ class ListCubit(
         );
       },
       onStatus: (status) {
-        _channelUp = status == ConnectionStatus.online;
-        emit(state.copyWith(connection: status));
-        if (status == ConnectionStatus.online) {
-          // Covers the first subscribe and every reconnect.
-          unawaited(resync());
+        if (current()) {
+          _onChannelStatus(status);
         }
       },
     );
-    unawaited(resync());
+  }
+
+  void _onChannelStatus(ConnectionStatus status) {
+    _channelUp = status == ConnectionStatus.online;
+    emit(state.copyWith(connection: status));
+    if (_channelUp) {
+      _resubscribe?.cancel();
+      _resubscribe = null;
+      _resubscribeDelay = _firstResubscribe;
+      // Covers the first subscribe and every reconnect.
+      unawaited(resync());
+    } else {
+      _resubscribe ??= Timer(_resubscribeDelay, () => unawaited(_rewatch()));
+    }
+  }
+
+  Future<void> _rewatch() async {
+    _resubscribe = null;
+    if (isClosed || _channelUp) {
+      return;
+    }
+    final doubled = _resubscribeDelay * 2;
+    _resubscribeDelay = doubled < _maxResubscribe ? doubled : _maxResubscribe;
+    final previous = _unwatch;
+    _watchGeneration++;
+    await previous?.call();
+    if (!isClosed && !_channelUp) {
+      _watch();
+    }
   }
 
   AddResult add(String input) => addEntry(parseEntry(input));
@@ -436,6 +489,7 @@ class ListCubit(
   @override
   Future<void> close() async {
     _retry?.cancel();
+    _resubscribe?.cancel();
     _catalogReload?.cancel();
     _save?.cancel();
     await _unwatch?.call();

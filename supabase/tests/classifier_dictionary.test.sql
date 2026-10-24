@@ -2,7 +2,7 @@
 -- their lists. Kept independent of supabase/classifier/dictionary.tsv: a
 -- failure here means the dictionary or the matching needs fixing.
 begin;
-select plan(289);
+select plan(291);
 
 insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000e1', 'erik@example.com');
 select set_config('role', 'authenticated', true);
@@ -303,7 +303,9 @@ from (values
   (286, 'Kartoffeln', 'produce'),
   (287, 'Chipstüte', 'sweets'),
   (288, 'Grillwürstchen', 'meat'),
-  (289, 'Stehlampe', 'household')
+  (289, 'Stehlampe', 'household'),
+  (290, 'Geschenkkarte', 'household'),
+  (291, 'Guthabenkarte', 'household')
 ) as t (n, input, expected)
 order by t.n;
 

@@ -618,7 +618,8 @@ Numbered 3.x so parallel jobs don't collide. Details and sources: `docs/MCP.md`.
       A dropped socket already recovered through the library's reconnect;
       an e2e test keeps that covered too.
 2b.11. **No generic `karte`.** It made "Schokokarte" Haushalt. Cards are
-      listed explicitly (Geburtstagskarte, Glückwunschkarte), "Chipstüte"
+      listed explicitly (Geburtstagskarte, Glückwunschkarte, Geschenkkarte,
+      Guthabenkarte), "Chipstüte"
       is sweets ahead of `tüte`, and "Spüli" is Haushalt. pgTAP rows guard
       food compounds next to the short terms (Kartoffelsalat, Fanta,
       Chipstüte, Schokokarte).

@@ -73,18 +73,20 @@ class SessionCubit(final SupabaseClient _client, final SessionCache _cache)
     if (_loadedFor == userId) {
       return;
     }
+    // The device's household opens the list at once and the server's answer
+    // corrects it, so an offline start never waits for a request to fail.
+    if (state is SessionLoading) {
+      if (await _cache.household(userId) case final household?) {
+        if (state is SessionLoading && _client.auth.currentUser?.id == userId) {
+          emit(InHousehold(userId, household));
+        }
+      }
+    }
     try {
       await refresh();
       _loadedFor = userId;
     } on Object {
-      // Offline: open the cached household, and ask until the server answers.
-      if (state is SessionLoading) {
-        if (await _cache.household(userId) case final household?) {
-          if (_client.auth.currentUser?.id == userId) {
-            emit(InHousehold(userId, household));
-          }
-        }
-      }
+      // Offline: ask until the server answers.
       _retry?.cancel();
       _retry = Timer(const Duration(seconds: 3), () {
         if (!isClosed && _client.auth.currentUser?.id == userId) {
@@ -100,7 +102,7 @@ class SessionCubit(final SupabaseClient _client, final SessionCache _cache)
       emit(const SignedOut());
       return;
     }
-    final row = await _client
+    final row = await _client.rest
         .from('household_members')
         .select('households(id, name)')
         .eq('user_id', userId)

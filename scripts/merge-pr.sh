@@ -14,7 +14,9 @@ source "$(dirname "$0")/lib.sh"
 PR="${1:?usage: scripts/merge-pr.sh <pr-number>}"
 AUTHOR_NAME="petertrost-bot"
 AUTHOR_EMAIL="341616691+petertrost-bot@users.noreply.github.com"
-TRAILERS=$'Co-authored-by: Peter Trost <peter@petertrost.com>\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
+# COMMON.md: every commit message ends with Peter's trailer.
+PETER_TRAILER='Co-authored-by: Peter Trost <peter@petertrost.com>'
+TRAILERS=$'Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n'"$PETER_TRAILER"
 
 cd "$REPO_ROOT"
 branch="$(gh pr view "$PR" --json headRefName -q .headRefName)"
@@ -26,11 +28,12 @@ git fetch -q origin main "$branch"
 commits="$(git rev-list --count "origin/main..$head")"
 author="$(git log -1 --format=%ae "$head")"
 actual_subject="$(git log -1 --format=%s "$head")"
+last_line="$(git log -1 --format=%B "$head" | sed '/^$/d' | tail -n 1)"
 if [[ "$(git merge-base origin/main "$head")" != "$(git rev-parse origin/main)" ]]; then
   echo "$branch is behind main; rebase it first" >&2
   exit 1
 fi
-if [[ "$commits" != 1 || "$author" != "$AUTHOR_EMAIL" || "$actual_subject" != "$subject" ]]; then
+if [[ "$commits" != 1 || "$author" != "$AUTHOR_EMAIL" || "$actual_subject" != "$subject" || "$last_line" != "$PETER_TRAILER" ]]; then
   log "squashing $branch into one commit: $subject"
   body="$(git log --reverse --format='%b' "origin/main..$head" | grep -v -e '^Co-authored-by:' -e '^Co-Authored-By:' | sed '/./,$!d')"
   tree="$(git rev-parse "$head^{tree}")"

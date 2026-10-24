@@ -71,7 +71,8 @@ jobs:
       - run: deno test --allow-env --allow-net
       # Job 2: the classifier dictionary and the migration generated from it.
       - name: Classifier dictionary matches its migration
-        run: deno fmt --check ../classifier && deno lint ../classifier && deno test --allow-read ../classifier
+        working-directory: supabase/classifier
+        run: deno fmt --check && deno lint && deno test --allow-read
       # Job 07: API-based migration deploy and the per-function import maps.
       - name: Deploy tooling tests
         working-directory: supabase/deploy
@@ -138,6 +139,10 @@ jobs:
         run: npx playwright test
         env:
           SCREENSHOT_DIR: ${{ github.workspace }}/e2e/screenshots
+      # Job 4b: a 503 from an Edge Function comes from the edge runtime, whose log says why.
+      - name: Edge runtime log
+        if: failure()
+        run: docker logs "$(docker ps -qf name=supabase_edge_runtime)" 2>&1 | tail -n 300
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -162,8 +167,41 @@ jobs:
           bundler-cache: true
       - run: bundle exec fastlane lanes
 
+  # Job 4b: the app's own Kotlin and Swift (the on-device speech check) compile.
+  android-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter build apk --debug
+
+  ios-build:
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter build ios --simulator --debug
+
   ci-ok:
-    needs: [gitleaks, app, functions, database, e2e, fastlane]
+    needs: [gitleaks, app, functions, database, e2e, fastlane, android-build, ios-build]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:

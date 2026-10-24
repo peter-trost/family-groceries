@@ -1,4 +1,5 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
+import { groupHeadings } from './catalog';
 import { addField, addItem, itemRow, newEmail, screenshot, signUpWithHousehold, tickBox, typeInto } from './helpers';
 
 test.beforeEach(async ({ page }) => {
@@ -12,8 +13,9 @@ test('adds are grouped by category in route order', async ({ page }) => {
   await expect(itemRow(page, 'Quietscheentchen')).toBeVisible();
   await expect(itemRow(page, 'Vollmilch')).toHaveAccessibleName('Vollmilch 2');
 
-  const headings = await page.getByRole('heading', { level: 2 }).allTextContents();
-  expect(headings.slice(1)).toEqual(['Obst & Gemüse', 'Brot & Backwaren', 'Kühlregal', 'Haushalt', 'Sonstiges']);
+  // Until the server classifies the last add, it waits under "Wird einsortiert …".
+  await expect.poll(() => groupHeadings(page))
+    .toEqual(['Obst & Gemüse', 'Brot & Backwaren', 'Kühlregal', 'Haushalt', 'Sonstiges']);
   await screenshot(page, '02-grouped-list');
 });
 

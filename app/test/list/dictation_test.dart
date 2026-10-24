@@ -13,19 +13,21 @@ import 'fake_repository.dart';
 import 'memory_cache.dart';
 
 /// Hears whatever the test completes `finish` with.
-class FakeDictation({final bool available = true}) implements Dictation {
-  final finish = Completer<String?>();
+class FakeDictation({final DictationProblem? problem}) implements Dictation {
+  final finish = Completer<Dictated>();
 
   @override
-  Future<bool> prepare() async => available;
+  Future<DictationProblem?> prepare() async => problem;
 
   @override
-  Future<String?> listen({required void Function(String words) onWords}) async {
-    final text = await finish.future;
-    if (text != null) {
+  Future<Dictated> listen({
+    required void Function(String words) onWords,
+  }) async {
+    final dictated = await finish.future;
+    if (dictated case Heard(:final text)) {
       onWords(text);
     }
-    return text;
+    return dictated;
   }
 
   @override
@@ -58,6 +60,19 @@ void main() {
   String fieldText(WidgetTester tester) =>
       tester.widget<TextField>(addField()).controller!.text;
 
+  test('the microphone exists on iOS and Android apps only', () {
+    for (final platform in TargetPlatform.values) {
+      final mobile =
+          platform == TargetPlatform.iOS || platform == TargetPlatform.android;
+      expect(
+        ListScreen.dictationFor(platform, web: false),
+        mobile ? isA<DeviceDictation>() : isNull,
+        reason: '$platform',
+      );
+      expect(ListScreen.dictationFor(platform, web: true), isNull);
+    }
+  });
+
   testWidgets('no microphone without a recognizer (web)', (tester) async {
     await pumpList(tester, null);
     expect(find.byTooltip('Diktieren'), findsNothing);
@@ -71,7 +86,7 @@ void main() {
     expect(find.byTooltip('Diktat beenden'), findsOneWidget);
     expect(find.text('Ich höre zu …'), findsOneWidget);
 
-    dictation.finish.complete('Milch, 2 Gurken und Klopapier');
+    dictation.finish.complete(Heard('Milch, 2 Gurken und Klopapier'));
     await tester.pumpAndSettle();
 
     expect(repo.rows.values.map((i) => (i.name, i.quantity)), [
@@ -98,7 +113,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.byTooltip('Diktieren'));
-    dictation.finish.complete('Milch und Brot');
+    dictation.finish.complete(Heard('Milch und Brot'));
     await tester.pumpAndSettle();
 
     expect(repo.rows.values.map((i) => i.name), ['Milch', 'Brot']);
@@ -113,7 +128,7 @@ void main() {
     await pumpList(tester, dictation);
     repo.online = false;
     await tester.tap(find.byTooltip('Diktieren'));
-    dictation.finish.complete('Milch und Brot');
+    dictation.finish.complete(Heard('Milch und Brot'));
     await tester.pumpAndSettle();
 
     expect(fieldText(tester), 'Milch und Brot');
@@ -125,7 +140,7 @@ void main() {
     final dictation = FakeDictation();
     await pumpList(tester, dictation);
     await tester.tap(find.byTooltip('Diktieren'));
-    dictation.finish.complete(null);
+    dictation.finish.complete(NothingHeard());
     await tester.pumpAndSettle();
 
     expect(find.text('Ich habe nichts gehört.'), findsOneWidget);
@@ -135,11 +150,42 @@ void main() {
   testWidgets('a refused microphone explains where to allow it', (
     tester,
   ) async {
-    await pumpList(tester, FakeDictation(available: false));
+    await pumpList(
+      tester,
+      FakeDictation(problem: DictationProblem.unavailable),
+    );
     await tester.tap(find.byTooltip('Diktieren'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Mikrofon'), findsOneWidget);
     expect(find.byTooltip('Diktieren'), findsOneWidget);
+  });
+
+  testWidgets('without offline German the microphone says why and stays off', (
+    tester,
+  ) async {
+    await pumpList(
+      tester,
+      FakeDictation(problem: DictationProblem.noOfflineGerman),
+    );
+    await tester.tap(find.byTooltip('Diktieren'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('deutsche Offline-Spracherkennung'), findsOne);
+    expect(find.text('Ich höre zu …'), findsNothing);
+    expect(find.byTooltip('Diktieren'), findsOneWidget);
+  });
+
+  testWidgets('a recognizer that finds no German model mid-way says why', (
+    tester,
+  ) async {
+    final dictation = FakeDictation();
+    await pumpList(tester, dictation);
+    await tester.tap(find.byTooltip('Diktieren'));
+    dictation.finish.complete(Refused(DictationProblem.noOfflineGerman));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('deutsche Offline-Spracherkennung'), findsOne);
+    expect(repo.rows, isEmpty);
   });
 }

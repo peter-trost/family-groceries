@@ -2,7 +2,7 @@
 -- their lists. Kept independent of supabase/classifier/dictionary.tsv: a
 -- failure here means the dictionary or the matching needs fixing.
 begin;
-select plan(235);
+select plan(280);
 
 insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000e1', 'erik@example.com');
 select set_config('role', 'authenticated', true);
@@ -249,7 +249,52 @@ from (values
   (232, 'Zewa', 'household'),
   (233, 'Katzenfutter', 'household'),
   (234, 'Butterkekse', 'sweets'),
-  (235, 'Eistee', 'drinks')
+  (235, 'Eistee', 'drinks'),
+  (236, 'Mülltüten', 'household'),
+  (237, 'Mülltüten 60 l', 'household'),
+  (238, 'Müllbeutel', 'household'),
+  (239, 'Müllsäcke', 'household'),
+  (240, 'Alufolie', 'household'),
+  (241, 'Frischhaltefolie', 'household'),
+  (242, 'Backpapier', 'household'),
+  (243, 'Spülmittel', 'household'),
+  (244, 'Toilettenpapier', 'household'),
+  (245, 'Feuchttücher', 'drugstore'),
+  (246, 'Windeln', 'drugstore'),
+  (247, 'Zahnpasta', 'drugstore'),
+  (248, 'Taschentuch', 'drugstore'),
+  (249, 'Spültabs', 'household'),
+  (250, 'Geschirrtabs', 'household'),
+  (251, 'Gefriertüten', 'household'),
+  (252, 'Frühstücksbeutel', 'household'),
+  (253, 'Butterbrottüten', 'household'),
+  (254, 'Brottüten', 'household'),
+  (255, 'Hundekotbeutel', 'household'),
+  (256, 'Bratschlauch', 'household'),
+  (257, 'Wasserfilter', 'household'),
+  (258, 'Kühlakku', 'household'),
+  (259, 'Plastikbesteck', 'household'),
+  (260, 'Trinkhalme', 'household'),
+  (261, 'Sekundenkleber', 'household'),
+  (262, 'Alleskleber', 'household'),
+  (263, 'Katzensnacks', 'household'),
+  (264, 'Leckerlis', 'household'),
+  (265, 'LED Lampe', 'household'),
+  (266, 'Somat', 'household'),
+  (267, 'Meister Proper', 'household'),
+  (268, 'Frosch', 'household'),
+  (269, 'Lenor', 'household'),
+  (270, 'Filtertüten', 'pantry'),
+  (271, 'Kaffeefilter', 'pantry'),
+  (272, 'Ohrenstäbchen', 'drugstore'),
+  (273, 'Haarbürste', 'drugstore'),
+  (274, 'Zahnzwischenraumbürsten', 'drugstore'),
+  (275, 'Handdesinfektion', 'drugstore'),
+  (276, 'Mückenschutz', 'drugstore'),
+  (277, 'Magnesium', 'drugstore'),
+  (278, 'Blend-a-med', 'drugstore'),
+  (279, 'Elmex', 'drugstore'),
+  (280, 'Penaten', 'drugstore')
 ) as t (n, input, expected)
 order by t.n;
 

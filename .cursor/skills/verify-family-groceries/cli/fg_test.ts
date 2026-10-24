@@ -351,3 +351,14 @@ Deno.test('up restarts a running stack whose config or functions changed since i
   assertStringIncludes(plan, 'config.toml or the function set changed');
   assertStringIncludes(plan, 'supabase start');
 });
+
+Deno.test('setup --dry-run on a fresh box plans pkg-config, the GTK headers and a JVM without running pkg-config', async () => {
+  const sh = new FakeShell((cmd) => {
+    if (cmd[0] === 'pkg-config') throw new Error('pkg-config is not installed');
+    return { code: 1, stdout: '' };
+  });
+  const { code, json } = await fg(['setup', '--dry-run'], sh, { ...ENV, FG_SURFACE: 'linux' });
+  assertEquals(code, 0, JSON.stringify(json));
+  const plan = (json?.wouldDo as string[]).join('\n');
+  for (const pkg of ['pkg-config', 'libgtk-3-dev', 'openjdk-21-jdk-headless', 'cmake']) assertStringIncludes(plan, pkg);
+});

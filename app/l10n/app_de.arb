@@ -21,6 +21,7 @@
   "dictationStop": "Diktat beenden",
   "dictationListening": "Ich höre zu …",
   "dictationUnavailable": "Spracheingabe ist nicht verfügbar. Erlaube Mikrofon und Spracherkennung in den Einstellungen.",
+  "dictationNoOfflineGerman": "Diktieren geht nur offline, damit deine Stimme auf dem Gerät bleibt. Dafür fehlt hier die deutsche Offline-Spracherkennung. Lade sie in den Systemeinstellungen herunter oder tippe den Eintrag ein.",
   "dictationNothingHeard": "Ich habe nichts gehört.",
   "dictationNothingUnderstood": "Ich habe nichts verstanden, was auf die Liste soll.",
   "dictationSplitFailed": "Keine Verbindung. Der Text steht im Feld; prüfe ihn und tippe auf Hinzufügen.",

@@ -186,7 +186,7 @@ packages:
     source: hosted
     version: "0.4.1"
   fake_async:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: fake_async
       sha256: "5368f224a74523e8d2e7399ea1638b37aecfca824a3cc4dfdf77bf1fa905ac44"
@@ -202,7 +202,7 @@ packages:
     source: hosted
     version: "2.2.0"
   file:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: file
       sha256: a3b4f84adafef897088c160faf7dfffb7696046cb13ae90b508c2cbc95d3b8d4
@@ -510,7 +510,7 @@ packages:
     source: hosted
     version: "1.9.1"
   path_provider_linux:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: path_provider_linux
       sha256: "58c2005f147315b11e9b4a7bc889cd5203e250cba8e3f012dae259b4972b5c16"
@@ -622,7 +622,7 @@ packages:
     source: hosted
     version: "2.5.7"
   shared_preferences_linux:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: shared_preferences_linux
       sha256: "580abfd40f415611503cae30adf626e6656dfb2f0cee8f465ece7b6defb40f2f"
@@ -747,7 +747,7 @@ packages:
     source: hosted
     version: "7.5.0"
   speech_to_text_platform_interface:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: speech_to_text_platform_interface
       sha256: "7e447356be3074c471223c9d179ef3f822475350b67ca923ec71ab3bf2ede214"

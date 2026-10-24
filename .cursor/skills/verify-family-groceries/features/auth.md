@@ -30,12 +30,11 @@ Preconditions:
 - **Magic link, send.** Sign out, then run `fg type --key login-email --input lea@fg.test --client lea` and `fg tap --text "Anmeldelink per E-Mail senden" --client lea`. `fg wait --contains "Anmeldelink geschickt" --client lea` succeeds. `fg mail --to lea --limit 1` shows the subject "Your sign-in link" and one `/auth/v1/verify?...type=magiclink&redirect_to=com.petertrost.familygroceries://login-callback` link.
 - **Magic link, open.** Android only: run `adb -s <serial from fg env> shell am start -a android.intent.action.VIEW -d "<link with 127.0.0.1 replaced by 10.0.2.2>"`, then `fg wait --key add-item-field`. On linux, report `auth-magic-open` as not drivable (see Gotchas).
 - **Sign-out.** Run `fg logout --client lea`. The result is `"screen": "login"`.
-- **Session survives restart.** Signed in, run `fg restart --client lea`, then `fg wait --key add-item-field --client lea`. On the linux surface this fails today (see Gotchas): report `auth-session` as failing on linux, not verified.
+- **Session survives restart.** Signed in, run `fg restart --client lea`, then `fg wait --key add-item-field --client lea`.
 - **Proof.** Take `fg screenshot --name auth-<sub-feature>` after each step, and record the mail with `fg mail --to lea > $(fg env | jq -r .evidenceDir)/auth-magic-mail.json`.
 
 ## Gotchas
 
-- On the linux surface a relaunched app comes back signed out (since 2026-10-23, job 4's device cache). supabase_flutter (`SharedPreferences`) and the app's offline cache (`SharedPreferencesAsync`) rewrite the same `shared_preferences.json` at sign-in, and the session is lost. Android and iOS keep the two in separate stores, so this is expected to be Linux-only (inferred, not tested). Reported on the jobs board.
 - The app bar title is also "Anmelden", so `fg tap --text Anmelden` is ambiguous. Press Enter in the password field (`--submit`) or use `fg login`.
 - `fg login` fails with `not_on_login` when the app is already signed in. Sign out first.
 - The magic link redirects to `com.petertrost.familygroceries://login-callback`. The Linux desktop build registers no handler for that scheme, so opening the link cannot sign it in. Android handles the scheme (intent filter). The web build uses an http redirect instead: `e2e/tests/auth.spec.ts` "magic link signs in on this device" covers it in CI.

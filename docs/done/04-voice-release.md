@@ -189,6 +189,6 @@ Nice to have, also done:
 - Unchanged by decision: dictation is not forced on-device (DECISIONS,
   job 4); "-3 Milch" and "null Milch" stay names.
 
-Results after the fixes (local `scripts/verify.sh`, rc 0): gitleaks clean,
+Merged as PR #10 (`fc73482` on main, CI green). Results after the fixes (local `scripts/verify.sh`, rc 0): gitleaks clean,
 pgTAP 390/390, `db lint` clean, Deno 229 + 3, Flutter analyze clean, Flutter
 156/156, Playwright 46/46.

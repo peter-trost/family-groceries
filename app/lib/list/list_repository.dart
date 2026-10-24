@@ -82,17 +82,17 @@ class SupabaseListRepository(
   @override
   Future<Catalog> fetchCatalog() async {
     final (categories, stores, layout) = await (
-      _client
+      _client.rest
           .from('categories')
           .select('id, name, sort_order, seed_key')
           .eq('household_id', householdId)
           .order('sort_order', ascending: true),
-      _client
+      _client.rest
           .from('stores')
           .select('id, name, sort_order, seed_key')
           .eq('household_id', householdId)
           .order('sort_order', ascending: true),
-      _client
+      _client.rest
           .from('store_category_order')
           .select('store_id, category_id, sort_order, hidden')
           .eq('household_id', householdId),
@@ -106,7 +106,7 @@ class SupabaseListRepository(
 
   @override
   Future<void> renameCategory(String id, String name) => _refusable(
-    () => _client.from('categories').update({'name': name}).eq('id', id),
+    () => _client.rest.from('categories').update({'name': name}).eq('id', id),
   );
 
   @override
@@ -152,12 +152,12 @@ class SupabaseListRepository(
   @override
   Future<List<Item>> fetchItems() async {
     final results = await Future.wait([
-      _client
+      _client.rest
           .from('items')
           .select(_itemColumns)
           .eq('household_id', householdId)
           .eq('status', 'active'),
-      _client
+      _client.rest
           .from('items')
           .select(_itemColumns)
           .eq('household_id', householdId)
@@ -181,7 +181,7 @@ class SupabaseListRepository(
   }
 
   Future<List<Map<String, dynamic>>> _write(ItemOp op) {
-    final items = _client.from('items');
+    final items = _client.rest.from('items');
     return switch (op) {
       AddItem(:final item) =>
         items
@@ -253,7 +253,7 @@ class SupabaseListRepository(
   }
 
   Future<Item?> _fetchItem(String id) async {
-    final row = await _client
+    final row = await _client.rest
         .from('items')
         .select(_itemColumns)
         .eq('id', id)
@@ -321,6 +321,15 @@ class SupabaseListRepository(
             _ => null,
           },
         )
+        // The join is confirmed before the server's Postgres listener runs;
+        // "Subscribed to PostgreSQL" says it does, and a resync then picks up
+        // what changed in between. Errors arrive as channelError below.
+        .onSystemEvents((payload) {
+          final Object? system = payload;
+          if (system case {'extension': 'postgres_changes', 'status': 'ok'}) {
+            onStatus(ConnectionStatus.online);
+          }
+        })
         .subscribe(
           (status, _) => onStatus(switch (status) {
             RealtimeSubscribeStatus.subscribed => ConnectionStatus.online,

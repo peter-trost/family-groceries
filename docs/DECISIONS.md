@@ -539,3 +539,135 @@ Numbered 3.x so parallel jobs don't collide. Details and sources: `docs/MCP.md`.
      whatever runs on that port. `supabase/deploy/auth_urls.ts` sets the
      Site URL, the redirect list and the consent path and keeps entries added
      by hand.
+## Job 2b (follow-ups to jobs 2 and 5), 2026-10-23
+
+2b.1. **Bags and brand names have dictionary entries.** `-tüte` and
+      `-beutel` are Haushalt (Mülltüten, Gefriertüten, Zipbeutel); Teebeutel,
+      Windelbeutel and Filtertüten stay where explicit entries put them.
+      Common cleaning and drugstore brands (Somat, Frosch, Lenor, Elmex,
+      Blend-a-med, Penaten) stand for their product. `kleber` is listed so
+      Sekundenkleber stops matching `leber` (Fleisch). Briefmarken stays
+      Sonstiges: stamps have no supermarket aisle, as the dictionary test
+      already said. Kaffeefilter and Filtertüten sit with the coffee
+      (Vorrat), Hustenbonbons with sweets. Found with a sweep of 345 common
+      non-food items through `classify_item`; 45 of the fixes are rows in
+      `supabase/tests/classifier_dictionary.test.sql`.
+2b.2. **The classifier folder has its own `deno.json`.** CI and
+      `scripts/verify.sh` run `deno fmt --check && deno lint && deno test`
+      inside `supabase/classifier`, the same command a developer runs there.
+2b.3. **Screenshots wait for two identical frames.** Flutter animates on
+      its canvas, which Playwright's `animations: 'disabled'` cannot reach.
+      The grey Edeka chip in job 2's `06-store-dm.png` was the chip's
+      deselect animation, not hover: the dm chip was mid fade-in in the same
+      frame. `screenshot()` (e2e helpers) now polls until two frames 100 ms
+      apart agree (2 s cap).
+2b.4. **Each resync keeps its own ack map.** The list opens with two
+      resyncs at once (start, and the channel's first `subscribed`). They
+      shared one nullable map; the first to finish nulled it and the other
+      threw, so the list showed Offline until the next write (3/3 menu joins
+      on the web build, 2/3 creates on the Linux app). A resync that answers
+      now also brings the list back online, but only while the realtime
+      channel is subscribed, so a dead channel still shows Offline.
+2b.5. **No postgrest GET retries.** postgrest 2.9.1 retries each GET three
+      times (1 + 2 + 4 s), invisibly. The session and list cubits already
+      retry every 3 s and writes are idempotent ops retried until acked, so
+      the library retries only delayed an offline cold start (7.7 s to the
+      cached list, 15 s to the Offline indicator; now 0.7 s). The option
+      only reaches `client.rest` (`client.from` builds its query builder
+      without it), so the app reads and writes through `client.rest`.
+2b.6. **e2e tests close the contexts they open.** Specs open one context
+      per user with `browser.newContext()` and the browser lives for the
+      worker, so every earlier test's app kept running: 48 renderers and
+      9.4 GB RSS by the end of a one-worker run. That load was the "OAuth e2e
+      flake" (a consent test waited 34 s for its first page) and much of the
+      box's memory pressure. `e2e/tests/fixtures.ts` extends `test` with an
+      auto fixture that closes them; `conventions.spec.ts` fails if a spec
+      imports `test` from `@playwright/test` directly. mcp.spec's
+      `retries: 1` (job 4) is gone.
+2b.7. **A catalog reload awaits before it reads the state.**
+      `emit(state.copyWith(catalog: await fetch()))` evaluated `state` before
+      the await and wrote the old pending ops and server rows back. An add
+      acked during the fetch came back as pending forever (1 in 20 runs of
+      offline-start), and an op queued during it could vanish unsent.
+2b.8. **The web bootstrap reloads once a boot asset load fails.** Chromium
+      aborts in-flight requests with `ERR_NETWORK_CHANGED` when the host's
+      interfaces change; Chromium declines to make that configurable. One
+      aborted `canvaskit.js` or `main.dart.js` left a blank page with no
+      error. `app/web/flutter_bootstrap.js` reloads, at most twice per tab
+      session (sessionStorage), and catches a failed `main.dart.js` with a
+      capture-phase listener because the loader's callback mode ignores the
+      script tag's error. On this box Docker bridges from other jobs' stacks
+      trigger it; for users a Wi-Fi or VPN switch during load does.
+2b.9. **The list resyncs when Realtime says it is live.** Realtime confirms
+      the channel join before its Postgres listener runs and announces it
+      later with a `system` event ("Subscribed to PostgreSQL", 2.5 s after
+      the join on this stack). A change in between was never delivered, so
+      an item added by voice or MCP right after the list opened stayed
+      missing (seen in a full e2e run, and around the local stack's periodic
+      "tenant terminated: rebalancing"). `watch()` now reports that event as
+      online, which resyncs. `realtime_client` already turns a `system`
+      error into `channelError`, which shows Offline.
+
+## Job 4b (voice follow-ups), 2026-10-23
+
+4b.1. **DeviceCache writes its own file on Linux** (`device_cache.json`, via
+      `SharedPreferencesLinuxOptions`). supabase_flutter keeps the session
+      through the legacy `SharedPreferences`, the cache uses
+      `SharedPreferencesAsync`, and on Linux both plugins hold their own
+      in-memory copy of `shared_preferences.json` and rewrite the whole file
+      on each write, so a cache write dropped the session (relaunch came back
+      signed out). Android, iOS and web ignore Linux options, so their stores
+      and keys are unchanged. Not migrated: Linux is a debug target, and the
+      household/list keys left in the old file are a cache that refills on
+      the next online start.
+4b.2. **Dictation is on-device only** (spec), superseding the job 4 note
+      "on-device recognition is not forced". `speech_to_text` 7.5 with
+      `onDevice: true` is strict on iOS (`requiresOnDeviceRecognition`) but on
+      Android silently uses the network recognizer when on-device
+      recognition is unavailable, and on iOS it answers a device without
+      on-device German twice. So the app asks first, over its own channel
+      `familygroceries/speech` (`MainActivity.kt`, `AppDelegate.swift`): iOS
+      `SFSpeechRecognizer(de_DE).supportsOnDeviceRecognition`; Android API 31+
+      `isOnDeviceRecognitionAvailable` and, on 33+, German among the installed
+      on-device languages. Without it the mic explains in German that the
+      offline German recognizer is missing and listens to nothing. An Android
+      12 device without German reports `error_language_*` once listening
+      starts; that gets the same message. Not 7.6.0-beta.4's
+      `hasOnDeviceSupport`: a beta, and its Android answer ignores the
+      language.
+4b.3. **The mic shows on iOS and Android only.** Linux and web have no
+      on-device recognizer; the Linux build used to show a button that could
+      only fail.
+4b.4. **CI compiles the native code** (`android-build`: debug APK on
+      Ubuntu; `ios-build`: simulator debug build on macOS, free for public
+      repositories). The app now has its own Kotlin and Swift, and nothing
+      compiled them before.
+4b.5. **Offline start: cache first, and list reads fail fast.** Review 1's
+      offline-start failure was the cached list missing 10 s after an offline
+      reload. Measured: the list appeared 7.6 s after the reload and
+      "Offline:" 7.3 s later. postgrest-dart 2.9 retries every GET three
+      times on network errors (1, 2 and 4 s), and `SupabaseClient.from()`
+      ignores `postgrestOptions.retryEnabled` (supabase 2.16.5), so the
+      session's household lookup and the list fetches each took about 7 s to
+      fail. Now SessionCubit opens the device's household before it asks the
+      server. The retries themselves are off through 02b's change (reads go
+      through `client.rest` with `retryEnabled: false`, 2b's decisions); this
+      branch had used `.retry(enabled: false)` per read and dropped it on
+      rebase. ListCubit and SessionCubit retry on their own every 3 s.
+      After: list 0.5 s, banner 0.6 s after an offline reload.
+4b.6. **Review 1's three e2e failures had one trigger.** The run (09:27 to
+      09:37) was frozen by mem-guard from 09:30:38 to 09:35:04 (SIGSTOP,
+      `mem-guard.log`), and with 3 workers exactly three tests were in
+      flight; each failed after 4.6 to 4.8 minutes on wall-clock timeouts.
+      Fixes for what made them fragile: 4b.5 for offline-start, 3b.3 (own
+      fake OIDC port) for social-sign-in, and one worker locally (3b.4).
+4b.7. **merge-pr.sh ends the squashed message with Peter's trailer**
+      (COMMON.md: every commit message ends with it) and re-squashes a head
+      that doesn't. Before, the Claude trailer came last. The Claude line
+      names the model that does the work (Claude Opus 5.5 here); COMMON.md
+      requires only Peter's line, so a later job on another model updates
+      `TRAILERS` in the script.
+4b.8. **The ops DONE_SUMMARY.md is a copy of `docs/done/<job>.md`**
+      (COORDINATION.md), byte for byte; the root `DONE_SUMMARY.md` only links
+      it. Job 4's repo copy gained the "Merged as PR #10" line its ops copy
+      already had.

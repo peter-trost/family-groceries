@@ -60,7 +60,7 @@ class SupabaseAccessRepository(final SupabaseClient _client)
     implements AccessRepository {
   @override
   Future<List<AccessToken>> fetchTokens() => _guard(() async {
-    final rows = await _client
+    final rows = await _client.rest
         .from('personal_access_tokens')
         .select('id, name, token_hint, created_at, last_used_at')
         .isFilter('revoked_at', null)
@@ -84,7 +84,7 @@ class SupabaseAccessRepository(final SupabaseClient _client)
 
   @override
   Future<void> revokeToken(String id) => _guard(
-    () => _client
+    () => _client.rest
         .from('personal_access_tokens')
         .update({'revoked_at': DateTime.now().toUtc().toIso8601String()})
         .eq('id', id),

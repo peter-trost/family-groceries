@@ -539,3 +539,64 @@ Numbered 3.x so parallel jobs don't collide. Details and sources: `docs/MCP.md`.
      whatever runs on that port. `supabase/deploy/auth_urls.ts` sets the
      Site URL, the redirect list and the consent path and keeps entries added
      by hand.
+
+## Job 8 (who added, new since you looked, usuals), 2026-10-23
+
+8.1. **Usuals come from `item_events`, grouped by `item_name_key`.** Only
+     `added` and `bought` count; `edited` (classifier moves), `restored` and
+     `deleted` are not uses. A tick undone within 10 minutes (the snackbar's
+     Rückgängig) is no purchase, and an item added and deleted without being
+     bought (a typo) is no history. The last quantity comes from the newest
+     `items` row of that key: bought rows are never purged, so no quantity
+     column on `item_events` is needed.
+8.2. **"Due" needs two purchases, not three.** Purchases are distinct
+     Europe/Berlin days with a counted tick. With n >= 2 the usual gap is
+     (last day - first day) / (n - 1), at least one day, and an item is due
+     from 1x to 4x that gap after its last purchase. Peter and Lea buy most
+     staples weekly, so two purchases a week apart already make a usual;
+     with three, the row would stay empty for most of the first month. The
+     4x cap drops what they stopped buying (seasonal fruit, a one-off
+     recipe). Proven with a fixed clock in `supabase/tests/suggest_items.test.sql`.
+8.3. **One year of history.** `suggest_items` reads the last 365 days. A
+     usual nobody touched for a year is not a usual, and the cost stays flat:
+     measured 0.34 s for 6000 events and 3000 rows (about two years of a
+     household). The first version took 26.6 s because it keyed every items
+     row inside correlated subqueries; names are now keyed once in
+     materialized CTEs.
+8.4. **The app fetches all usuals once and filters while typing on the
+     device.** `fetchUsuals` asks for up to 200 with an empty prefix; the
+     cubit matches the typed text the way the server matches `p_prefix`
+     (folded name starts with it first, then a word starts with it). Chips
+     therefore show at the first keystroke, offline too, with no request
+     per keystroke, so there is no typing debounce. The cache refreshes with
+     every resync and, debounced by 1.5 s, after the set of active names
+     changes (a ticked item comes back as a suggestion). `p_prefix` stays on
+     the RPC for MCP and other callers.
+8.5. **Usuals live in the list snapshot, which becomes version 2.** The
+     snapshot gains a per-version migrator chain (`ListSnapshot._upgrades`):
+     a v1 snapshot from an older app loads with its pending ops, and new
+     nullable fields such as `added_by` are read tolerantly without a
+     version bump. A snapshot newer than the app (a downgrade, which TestFlight
+     and the stores don't do) is still dropped.
+8.6. **"Neu" is a server-time watermark plus a set of ids, per device.** The
+     seen mark (`SeenMark`, DeviceCache key `seen.<user>.<household>`, outside
+     the snapshot) holds `until`, the newest server `created_at` the user has
+     seen past, and the ids seen after it. Comparing server times with server
+     times keeps a wrong phone clock out of it. A first start sets `until`
+     to the newest row already there, so nothing old lights up. A partner
+     item turns plain after it has been at least half on screen for 3 s
+     while the app shows (VisibilityDetector per tile; web counts an
+     unfocused window as showing). Once every new item is seen, `until`
+     moves past them. A seen item that is ticked and put back stays seen.
+8.7. **Partner initial: first letter, two when another member shares it.**
+     No badge on own items, on items whose author left the household, or
+     before the server confirms an add. An add by someone not in the
+     catalog's members reloads the catalog, so a new member's initial shows.
+8.8. **Web: a tap next to the add field gives its focus back after the
+     engine's deferred blur.** Tapping a semantics node (a chip, the send
+     icon) blurs the field's DOM input while Flutter keeps the field
+     focused, and the engine's `safeBlur` of the closed text connection runs
+     on a zero-delay timer that beats a refocus in the next frames (traced
+     with a JS stack hook). The tap unfocuses and refocuses 50 ms later.
+     Mobile is untouched (the keyboard would flicker). The Enter path is
+     unchanged; it never blurs.

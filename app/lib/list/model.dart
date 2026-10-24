@@ -80,6 +80,7 @@ class const Catalog({
   final List<Category> categories = const [],
   final List<Store> stores = const [],
   final List<StoreCategory> layout = const [],
+  final List<Member> members = const [],
 }) {
   factory fromJson(Map<String, Object?> json) => Catalog(
     categories: [
@@ -94,13 +95,37 @@ class const Catalog({
       for (final row in json['layout']! as List<Object?>)
         StoreCategory.fromJson(row! as Map<String, Object?>),
     ],
+    members: [
+      for (final row in json['members']! as List<Object?>)
+        Member.fromJson(row! as Map<String, Object?>),
+    ],
   );
 
   Map<String, Object?> toJson() => {
     'categories': [for (final c in categories) c.toJson()],
     'stores': [for (final s in stores) s.toJson()],
     'layout': [for (final row in layout) row.toJson()],
+    'members': [for (final m in members) m.toJson()],
   };
+
+  Member? member(String? id) => members.where((m) => m.id == id).firstOrNull;
+
+  /// The badge for [member]: the first letter, two when another member's
+  /// name starts with the same one, '?' for an empty name.
+  String initialOf(Member member) {
+    String head(String name, int n) =>
+        String.fromCharCodes(name.trim().runes.take(n));
+    final first = head(member.displayName, 1).toUpperCase();
+    if (first.isEmpty) {
+      return '?';
+    }
+    final shared = members.any(
+      (m) => m.id != member.id && head(m.displayName, 1).toUpperCase() == first,
+    );
+    return shared
+        ? first + head(member.displayName, 2).substring(first.length)
+        : first;
+  }
 
   Category? get fallback =>
       categories.where((c) => c.seedKey == 'other').firstOrNull;
@@ -123,6 +148,7 @@ class const Catalog({
       ],
       stores: stores,
       layout: layout,
+      members: members,
     );
   }
 
@@ -141,6 +167,7 @@ class const Catalog({
     ],
     stores: stores,
     layout: layout,
+    members: members,
   );
 
   Catalog withStoreLayout(
@@ -160,7 +187,22 @@ class const Catalog({
           hidden: hiddenIds.contains(id),
         ),
     ],
+    members: members,
   );
+}
+
+/// A household member as the list names them.
+@immutable
+class const Member({
+  required final String id,
+  required final String displayName,
+}) {
+  factory fromJson(Map<String, Object?> json) => Member(
+    id: json['id']! as String,
+    displayName: json['display_name']! as String,
+  );
+
+  Map<String, Object?> toJson() => {'id': id, 'display_name': displayName};
 }
 
 /// Which shop the list is sorted for.
@@ -212,6 +254,10 @@ class const Item({
   final String? categoryId,
   final String? storeId,
   final DateTime? boughtAt,
+
+  /// The member who added it; null until the server confirms the add, and
+  /// in snapshots older than the field.
+  final String? addedBy,
 }) {
   factory fromJson(Map<String, Object?> json) => Item(
     id: json['id']! as String,
@@ -226,6 +272,7 @@ class const Item({
       final String at => DateTime.parse(at),
       _ => null,
     },
+    addedBy: json['added_by'] as String?,
   );
 
   /// The same keys as a server row, so [Item.fromJson] reads it back.
@@ -239,6 +286,7 @@ class const Item({
     'created_at': createdAt.toIso8601String(),
     'updated_at': updatedAt.toIso8601String(),
     'bought_at': boughtAt?.toIso8601String(),
+    'added_by': addedBy,
   };
 
   Item copyWith({
@@ -258,7 +306,11 @@ class const Item({
     createdAt: createdAt,
     updatedAt: updatedAt,
     boughtAt: boughtAt == null ? this.boughtAt : boughtAt(),
+    addedBy: addedBy,
   );
+
+  /// Added by another member (not by [userId], and not still unconfirmed).
+  bool isFromPartner(String userId) => addedBy != null && addedBy != userId;
 }
 
 /// A user's intent, applied optimistically on top of the server state until
@@ -476,4 +528,140 @@ List<Item> recentlyBought(Iterable<Item> items, {int limit = 20}) {
           (b.boughtAt ?? b.updatedAt).compareTo(a.boughtAt ?? a.updatedAt),
     );
   return bought.take(limit).toList();
+}
+
+/// Something the household buys again and again, as `public.suggest_items`
+/// ranks it; [due] when its usual interval since the last purchase is up.
+@immutable
+class const Usual({
+  required final String name,
+  required final bool due,
+  final String? quantity,
+}) {
+  factory fromJson(Map<String, Object?> json) => Usual(
+    name: json['name']! as String,
+    quantity: json['quantity'] as String?,
+    due: json['due']! as bool,
+  );
+
+  Map<String, Object?> toJson() => {
+    'name': name,
+    'quantity': quantity,
+    'due': due,
+  };
+}
+
+/// What `public.normalize_item_name` makes of a name.
+String foldName(String name) => name
+    .trim()
+    .toLowerCase()
+    .replaceAll('ä', 'ae')
+    .replaceAll('ö', 'oe')
+    .replaceAll('ü', 'ue')
+    .replaceAll('ß', 'ss')
+    .replaceAll(RegExp(r'\s+'), ' ');
+
+/// [usuals] matching what is typed, as the server matches a prefix: names
+/// starting with it first, then names with a word starting with it, each in
+/// the server's order. Names already on the list are left out.
+List<Usual> suggestUsuals(
+  List<Usual> usuals,
+  Iterable<Item> visible,
+  String text, {
+  int limit = 5,
+}) {
+  final prefix = foldName(text);
+  if (prefix.isEmpty) {
+    return const [];
+  }
+  final offList = _offList(usuals, visible);
+  final words = RegExp('[ -]');
+  return [
+    ...offList.where((u) => foldName(u.name).startsWith(prefix)),
+    ...offList.where((u) {
+      final name = foldName(u.name);
+      return !name.startsWith(prefix) &&
+          name.split(words).any((w) => w.startsWith(prefix));
+    }),
+  ].take(limit).toList();
+}
+
+/// The due [usuals] not on the list, in the server's order.
+List<Usual> dueUsualsOf(
+  List<Usual> usuals,
+  Iterable<Item> visible, {
+  int limit = 10,
+}) => _offList(usuals, visible).where((u) => u.due).take(limit).toList();
+
+Iterable<Usual> _offList(List<Usual> usuals, Iterable<Item> visible) {
+  final active = {
+    for (final item in visible)
+      if (item.status == ItemStatus.active) item.name.toLowerCase(),
+  };
+  return usuals.where((u) => !active.contains(u.name.toLowerCase()));
+}
+
+/// How far a user has looked at partner adds: everything created up to
+/// [until] (null: from the beginning), plus the items in [ids] after it.
+@immutable
+class const SeenMark({
+  final DateTime? until,
+  final Set<String> ids = const {},
+}) {
+  factory fromJson(Map<String, Object?> json) => SeenMark(
+    until: switch (json['until']) {
+      final String at => DateTime.parse(at),
+      _ => null,
+    },
+    ids: {for (final id in json['ids']! as List<Object?>) id! as String},
+  );
+
+  Map<String, Object?> toJson() => {
+    'until': until?.toIso8601String(),
+    'ids': [...ids],
+  };
+
+  /// Partner items created after [until], seen or not, ticked or not.
+  Iterable<Item> _after(Iterable<Item> visible, String userId) {
+    final since = until;
+    return visible.where(
+      (i) =>
+          i.isFromPartner(userId) &&
+          (since == null || i.createdAt.isAfter(since)),
+    );
+  }
+
+  /// Ids of the partner items on the list [userId] has not seen yet.
+  Set<String> fresh(Iterable<Item> visible, String userId) => {
+    for (final item in _after(visible, userId))
+      if (item.status == ItemStatus.active && !ids.contains(item.id)) item.id,
+  };
+
+  /// Marks [seenIds] as seen. Once every partner item on the list is seen,
+  /// [until] moves past them, so [ids] stays small. A seen item keeps its
+  /// id while it is known, so ticking and putting it back is no news.
+  SeenMark marking(Set<String> seenIds, Iterable<Item> visible, String userId) {
+    final after = _after(visible, userId).toList();
+    final seen = {
+      ...ids,
+      ...seenIds,
+    }.intersection({for (final item in after) item.id});
+    final active = [
+      for (final item in after)
+        if (item.status == ItemStatus.active) item,
+    ];
+    if (active.isEmpty || !active.every((i) => seen.contains(i.id))) {
+      return SeenMark(until: until, ids: seen);
+    }
+    final next = active
+        .map((i) => i.createdAt)
+        .reduce((a, b) => a.isAfter(b) ? a : b);
+    return SeenMark(
+      until: next,
+      ids: {
+        for (final item in after)
+          if (seen.contains(item.id) && item.createdAt.isAfter(next)) item.id,
+      },
+    );
+  }
 }

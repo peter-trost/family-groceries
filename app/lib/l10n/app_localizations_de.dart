@@ -510,4 +510,30 @@ class AppLocalizationsDe extends AppLocalizations {
   String storeCarries(String category, String store) {
     return '$category gibt es bei $store';
   }
+
+  @override
+  String newItemsFrom(int count, String name) {
+    return '$count neu von $name';
+  }
+
+  @override
+  String newItems(int count) {
+    return '$count neu';
+  }
+
+  @override
+  String get newItem => 'Neu';
+
+  @override
+  String addedBy(String name) {
+    return 'Von $name hinzugefügt';
+  }
+
+  @override
+  String suggestion(String label) {
+    return 'Vorschlag: $label';
+  }
+
+  @override
+  String get dueSuggestions => 'Brauchen wir wieder?';
 }

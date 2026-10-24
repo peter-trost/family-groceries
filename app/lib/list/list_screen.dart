@@ -18,6 +18,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 /// The whole app for day-to-day use: add field on top, list beneath.
 class const ListScreen({
@@ -42,6 +43,7 @@ class const ListScreen({
         repository ??
             SupabaseListRepository(Supabase.instance.client, household.id),
         context.read<DeviceCache>().list(session.userId, household.id),
+        userId: session.userId,
       )..start(),
       child: ShoppingList(household: household, dictation: _dictation),
     );
@@ -66,12 +68,32 @@ class _ShoppingListState() extends State<ShoppingList> {
   late final StreamSubscription<Rejected> _rejections;
   var _listening = false;
 
+  /// Fresh items on screen now, and the timers that mark them seen.
+  final _visibleFresh = <String>{};
+  final _seenTimers = <String, Timer>{};
+  var _onScreen = _shows(WidgetsBinding.instance.lifecycleState);
+
+  /// Inactive still shows the app: a web tab whose window lost focus, or an
+  /// iOS app under the control center.
+  static bool _shows(AppLifecycleState? state) => switch (state) {
+    null || AppLifecycleState.resumed || AppLifecycleState.inactive => true,
+    _ => false,
+  };
+
   @override
   void initState() {
     super.initState();
     final cubit = context.read<ListCubit>();
     _lifecycle = AppLifecycleListener(
       onResume: () => unawaited(cubit.resync()),
+      onStateChange: (state) {
+        _onScreen = _shows(state);
+        if (_onScreen) {
+          _visibleFresh.forEach(_armSeen);
+        } else {
+          _cancelSeenTimers();
+        }
+      },
     );
     _rejections = cubit.rejections.listen((rejection) {
       if (!mounted) {
@@ -89,6 +111,7 @@ class _ShoppingListState() extends State<ShoppingList> {
   @override
   void dispose() {
     unawaited(_rejections.cancel());
+    _cancelSeenTimers();
     _lifecycle.dispose();
     _input.dispose();
     _inputFocus.dispose();
@@ -110,9 +133,68 @@ class _ShoppingListState() extends State<ShoppingList> {
       );
   }
 
-  void _submit() {
+  /// A fresh item counts as seen after three seconds on screen while the
+  /// app shows.
+  void _freshVisible(String id, {required bool visible}) {
+    if (!mounted) {
+      return;
+    }
+    if (!visible) {
+      _visibleFresh.remove(id);
+      _seenTimers.remove(id)?.cancel();
+      return;
+    }
+    if (_visibleFresh.add(id)) {
+      _armSeen(id);
+    }
+  }
+
+  void _armSeen(String id) {
+    if (!_onScreen || _seenTimers.containsKey(id)) {
+      return;
+    }
+    _seenTimers[id] = Timer(const Duration(seconds: 3), () {
+      _seenTimers.remove(id);
+      _visibleFresh.remove(id);
+      if (mounted) {
+        context.read<ListCubit>().markSeen({id});
+      }
+    });
+  }
+
+  void _cancelSeenTimers() {
+    for (final timer in _seenTimers.values) {
+      timer.cancel();
+    }
+    _seenTimers.clear();
+  }
+
+  void _submit() => _afterAdd(context.read<ListCubit>().add(_input.text));
+
+  void _addUsual(Usual usual) {
+    _afterAdd(context.read<ListCubit>().addUsual(usual));
+    _refocusAfterTap();
+  }
+
+  /// On web a tap outside the field blurs its DOM input while Flutter keeps
+  /// the field focused, so requestFocus does nothing. A fresh focus gives the
+  /// input back; it waits for the engine's deferred blur of the closed
+  /// connection (a zero-delay timer) to run first, or that blur wins.
+  void _refocusAfterTap() {
+    if (!kIsWeb) {
+      return;
+    }
+    _inputFocus.unfocus();
+    Timer(const Duration(milliseconds: 50), () {
+      if (mounted) {
+        _inputFocus.requestFocus();
+      }
+    });
+  }
+
+  void _afterAdd(AddResult result) {
     final l10n = AppLocalizations.of(context);
-    switch (context.read<ListCubit>().add(_input.text)) {
+    switch (result) {
       case Added():
         _input.clear();
       case AlreadyOnList(:final item):
@@ -251,7 +333,7 @@ class _ShoppingListState() extends State<ShoppingList> {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.household.name),
+        title: _Title(widget.household.name),
         actions: [
           const _SyncIndicator(),
           _Menu(household: widget.household),
@@ -312,7 +394,10 @@ class _ShoppingListState() extends State<ShoppingList> {
                       IconButton(
                         tooltip: l10n.addButton,
                         icon: const Icon(Icons.send),
-                        onPressed: _submit,
+                        onPressed: () {
+                          _submit();
+                          _refocusAfterTap();
+                        },
                       ),
                     ],
                   ),
@@ -326,11 +411,23 @@ class _ShoppingListState() extends State<ShoppingList> {
               ),
             ),
           ),
+          // Tapping a chip neither takes focus nor counts as a tap outside
+          // the field, so typing goes on.
+          ExcludeFocus(
+            child: TextFieldTapRegion(
+              child: ValueListenableBuilder(
+                valueListenable: _input,
+                builder: (context, value, _) =>
+                    _UsualChips(text: value.text, onTap: _addUsual),
+              ),
+            ),
+          ),
           const _StorePicker(),
           Expanded(
             child: BlocBuilder<ListCubit, ListState>(
               builder: (context, state) => _ListBody(
                 state: state,
+                onFreshVisible: _freshVisible,
                 onTick: _tick,
                 onMove: (item, categoryId) =>
                     context.read<ListCubit>().move(item.id, categoryId),
@@ -410,6 +507,8 @@ class const _StorePicker() extends StatelessWidget {
 
 class const _ListBody({
   required final ListState state,
+  required final void Function(String id, {required bool visible})
+  onFreshVisible,
   required final ValueChanged<Item> onTick,
   required final ValueChanged<Item> onEdit,
   required final ValueChanged<Item> onDelete,
@@ -451,6 +550,10 @@ class _ListBodyState() extends State<_ListBody> {
     };
     final bought = recentlyBought(items);
     final theme = Theme.of(context);
+    final cubit = context.read<ListCubit>();
+    final fresh = cubit.fresh;
+    // Visibility reports can arrive after this list is gone.
+    final onFreshVisible = widget.onFreshVisible;
     return ListView(
       padding: const EdgeInsets.only(bottom: 96),
       children: [
@@ -476,6 +579,13 @@ class _ListBodyState() extends State<_ListBody> {
                 _ItemTile(
                   key: ValueKey(item.id),
                   item: item,
+                  addedBy: item.isFromPartner(cubit.userId)
+                      ? state.catalog.member(item.addedBy)
+                      : null,
+                  catalog: state.catalog,
+                  fresh: fresh.contains(item.id),
+                  onVisible: (visible) =>
+                      onFreshVisible(item.id, visible: visible),
                   onTick: () => widget.onTick(item),
                   onEdit: () => widget.onEdit(item),
                   onDelete: () => widget.onDelete(item),
@@ -579,6 +689,14 @@ class const _GroupHeader(final String title) extends StatelessWidget {
 
 class const _ItemTile({
   required final Item item,
+
+  /// The partner who added it; null for own items and unknown members.
+  required final Member? addedBy,
+  required final Catalog catalog,
+
+  /// Not seen yet: tinted, and it reports whether it is on screen.
+  required final bool fresh,
+  required final ValueChanged<bool> onVisible,
   required final VoidCallback onTick,
   required final VoidCallback onEdit,
   required final VoidCallback onDelete,
@@ -590,7 +708,15 @@ class const _ItemTile({
     final theme = Theme.of(context);
     // Its own node, so a group's only item does not become the parent of
     // the group heading.
-    final tile = Semantics(container: true, child: _tile(context));
+    final plain = Semantics(container: true, child: _tile(context));
+    final tile = fresh
+        ? VisibilityDetector(
+            key: ValueKey('new-${item.id}'),
+            onVisibilityChanged: (info) =>
+                onVisible(info.visibleFraction > 0.5),
+            child: plain,
+          )
+        : plain;
     // Long press, so scrolling, tapping and swiping keep working.
     return LongPressDraggable<Item>(
       data: item,
@@ -612,6 +738,7 @@ class const _ItemTile({
 
   Widget _tile(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     final quantity = item.quantity;
     return Dismissible(
       key: ValueKey('dismiss-${item.id}'),
@@ -637,11 +764,123 @@ class const _ItemTile({
             onChanged: (_) => onTick(),
           ),
         ),
-        title: Text(item.name),
-        trailing: quantity == null
-            ? null
-            : Text(quantity, style: Theme.of(context).textTheme.bodyMedium),
+        tileColor: fresh ? theme.colorScheme.tertiaryContainer : null,
+        title: Text(
+          item.name,
+          // Joined like merged labels, so the row's name still starts with
+          // the item's.
+          semanticsLabel: fresh ? '${item.name}\n${l10n.newItem}' : null,
+        ),
+        trailing: switch ((quantity, addedBy)) {
+          (null, null) => null,
+          _ => Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 8,
+            children: [
+              if (quantity != null)
+                Text(quantity, style: theme.textTheme.bodyMedium),
+              if (addedBy case final member?)
+                Semantics(
+                  label: l10n.addedBy(member.displayName),
+                  excludeSemantics: true,
+                  child: CircleAvatar(
+                    key: ValueKey('added-by-${item.id}'),
+                    radius: 12,
+                    child: Text(
+                      catalog.initialOf(member),
+                      style: theme.textTheme.labelSmall,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        },
         onTap: onEdit,
+      ),
+    );
+  }
+}
+
+/// The household's name, and how many partner adds are new.
+class const _Title(final String household) extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return BlocBuilder<ListCubit, ListState>(
+      builder: (context, state) {
+        final fresh = context.read<ListCubit>().fresh;
+        if (fresh.isEmpty) {
+          return Text(household);
+        }
+        final by = {for (final id in fresh) state.items[id]?.addedBy};
+        final partner = by.length == 1 ? state.catalog.member(by.single) : null;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(household),
+            Text(
+              partner == null
+                  ? l10n.newItems(fresh.length)
+                  : l10n.newItemsFrom(fresh.length, partner.displayName),
+              key: const ValueKey('new-items-subtitle'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Usuals for what is typed, or the due ones while the field is empty.
+class const _UsualChips({
+  required final String text,
+  required final ValueChanged<Usual> onTap,
+}) extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return BlocBuilder<ListCubit, ListState>(
+      builder: (context, _) {
+        final cubit = context.read<ListCubit>();
+        final typing = text.trim().isNotEmpty;
+        final usuals = typing ? cubit.suggestionsFor(text) : cubit.dueUsuals;
+        if (usuals.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        return Padding(
+          key: ValueKey(typing ? 'suggestions' : 'due-suggestions'),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                spacing: 8,
+                children: [
+                  if (!typing) Text(l10n.dueSuggestions),
+                  for (final usual in usuals) _chip(l10n, usual),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _chip(AppLocalizations l10n, Usual usual) {
+    final label = [?usual.quantity, usual.name].join(' ');
+    return Semantics(
+      label: l10n.suggestion(label),
+      button: true,
+      excludeSemantics: true,
+      onTap: () => onTap(usual),
+      child: ActionChip(
+        key: ValueKey('suggestion-${usual.name}'),
+        label: Text(label),
+        onPressed: () => onTap(usual),
       ),
     );
   }

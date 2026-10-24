@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { localSecretKey } from '../stack';
 import {
   addField, addItem, apiAs, cutOff, itemRow, newEmail, screenshot, signUpWithHousehold, supabaseUrl, tickBox, typeInto,

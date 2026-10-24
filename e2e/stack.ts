@@ -2,29 +2,35 @@ import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+let status: string | undefined;
+
+/** A value from the environment, else from `supabase status` of this checkout's stack. */
+function read(name: string, fromEnv: string | undefined): string {
+  if (fromEnv) return fromEnv;
+  status ??= execSync('supabase status -o env', {
+    cwd: fileURLToPath(new URL('..', import.meta.url)),
+    encoding: 'utf8',
+  });
+  const value = status.match(new RegExp(`^${name}="(.*)"$`, 'm'))?.[1];
+  if (!value) throw new Error(`supabase status reports no ${name}; is the local stack running?`);
+  return value;
+}
+
 /**
  * The local stack this checkout runs, from the environment (scripts/lib.sh, CI) or else from
  * `supabase status`. Never a default port: parallel checkouts run stacks on other port blocks.
  */
 function localStack(): { url: string; key: string; mailpit: string } {
   const { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, MAILPIT_URL } = process.env;
-  let status: string | undefined;
-  const read = (name: string, fromEnv: string | undefined): string => {
-    if (fromEnv) return fromEnv;
-    status ??= execSync('supabase status -o env', {
-      cwd: fileURLToPath(new URL('..', import.meta.url)),
-      encoding: 'utf8',
-    });
-    const value = status.match(new RegExp(`^${name}="(.*)"$`, 'm'))?.[1];
-    if (!value) throw new Error(`supabase status reports no ${name}; is the local stack running?`);
-    return value;
-  };
   return {
     url: read('API_URL', SUPABASE_URL),
     key: read('PUBLISHABLE_KEY', SUPABASE_PUBLISHABLE_KEY),
     mailpit: read('MAILPIT_URL', MAILPIT_URL),
   };
 }
+
+/** The local stack's secret key, for test setup no user may do (backdated history). */
+export const localSecretKey = (): string => read('SECRET_KEY', process.env.SUPABASE_SECRET_KEY);
 
 export const stack = localStack();
 

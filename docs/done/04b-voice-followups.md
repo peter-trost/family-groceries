@@ -86,6 +86,20 @@ Decisions are in `docs/DECISIONS.md` under "Job 4b".
    405, 422, the 30-item limit, and a personal access token that answers
    200 and then 401 once revoked.
 
+6. **Review 0 fixes.**
+   - The Linux screenshots were retaken from the final code (no mic on
+     Linux): `fg up --fresh`, sign in, add Hafermilch, three `fg restart`s,
+     each back on the list; `device_cache.json` holds `household.`/`list.`,
+     `shared_preferences.json` holds `flutter.sb-127-auth-token`.
+   - `fg setup` works on a fresh box: it no longer runs `pkg-config` before
+     installing it, and it installs a JDK for the linux surface too
+     (`shared_preferences_android`'s `jni` plugin links `libjvm.so` into the
+     Linux build). Found when the 21:20 restart wiped both. New CLI test.
+   - The mic gate has a test (`ListScreen.dictationFor`: iOS and Android
+     apps only, never web).
+   - NEEDS_PETER names the phones that can dictate (Android 12+, iPhone with
+     the German model) and the Android 12 case to try.
+
 ## How to verify
 
 ```bash

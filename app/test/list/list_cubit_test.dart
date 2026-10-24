@@ -153,6 +153,25 @@ void main() {
     expect(cubit.state.catalog.categories.first.name, 'Obst');
   });
 
+  test('a closed channel is subscribed again until it is live', () async {
+    final retrying = ListCubit(
+      repo,
+      cache,
+      resubscribeAfter: const Duration(milliseconds: 10),
+    )..start();
+    await settle();
+    final before = repo.watches;
+    repo.emitStatus!(ConnectionStatus.offline);
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(repo.watches, before + 1);
+    repo.emitStatus!(ConnectionStatus.online);
+    await settle();
+    expect(retrying.state.connection, ConnectionStatus.online);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(repo.watches, before + 1, reason: 'no more resubscribes once live');
+    await retrying.close();
+  });
+
   test('a delete can be undone with the same id', () async {
     final item = (cubit.add('Milch') as Added).item;
     await settle();

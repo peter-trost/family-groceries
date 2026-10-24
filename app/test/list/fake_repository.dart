@@ -52,6 +52,9 @@ class FakeRepository() implements ListRepository {
 
   Completer<void>? gate;
 
+  /// How many times the list subscribed to realtime.
+  var watches = 0;
+
   /// Holds catalog fetches until completed.
   Completer<void>? catalogGate;
 
@@ -202,6 +205,7 @@ class FakeRepository() implements ListRepository {
     required void Function() onCatalogChanged,
     required void Function(ConnectionStatus status) onStatus,
   }) {
+    watches++;
     emitItem = onItem;
     emitDelete = onItemDeleted;
     emitStatus = onStatus;

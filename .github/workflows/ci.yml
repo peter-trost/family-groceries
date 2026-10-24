@@ -95,6 +95,7 @@ jobs:
         run: sudo sysctl -w net.ipv4.ip_local_port_range="60000 65000"
       - run: supabase db start
       - run: supabase test db
+      - run: supabase/classifier/sweep.sh
       - run: supabase db lint --local --fail-on warning
 
   e2e:

@@ -619,7 +619,14 @@ Numbered 3.x so parallel jobs don't collide. Details and sources: `docs/MCP.md`.
       an e2e test keeps that covered too.
 2b.11. **No generic `karte`.** It made "Schokokarte" Haushalt. Cards are
       listed explicitly (Geburtstagskarte, Glückwunschkarte, Geschenkkarte,
-      Guthabenkarte), "Chipstüte"
-      is sweets ahead of `tüte`, and "Spüli" is Haushalt. pgTAP rows guard
-      food compounds next to the short terms (Kartoffelsalat, Fanta,
-      Chipstüte, Schokokarte).
+      Guthabenkarte), "Chipstüte" is sweets ahead of `tüte`, and "Spüli" is
+      Haushalt. pgTAP rows guard food compounds next to the short terms
+      (Kartoffelsalat, Fanta, Chipstüte, Schokokarte).
+2b.12. **The 345-item sweep is a checked-in regression list.**
+      `supabase/classifier/sweep.tsv` holds every swept item with its
+      category; `sweep.sh` classifies them on the local stack and prints the
+      rows that moved. CI's database job and `scripts/verify.sh` run it, so
+      a dictionary change that moves one of them fails until the list is
+      refreshed (`sweep.sh --print`) on purpose. Rerunning it showed
+      Babytücher and "Feuchte Tücher" in Haushalt (via `tücher`) while
+      Feuchttücher is Drogerie; both are now Drogerie.

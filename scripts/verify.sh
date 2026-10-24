@@ -18,7 +18,7 @@ log "secret scan (gitleaks, full history + working tree)"
 
 log "database: reset, pgTAP, lint"
 supabase_up
-(cd "$REPO_ROOT" && supabase db reset >/dev/null && supabase test db && supabase db lint --local --fail-on warning)
+(cd "$REPO_ROOT" && supabase db reset >/dev/null && supabase test db && supabase/classifier/sweep.sh && supabase db lint --local --fail-on warning)
 
 log "edge functions: deno fmt/lint/test"
 (cd "$REPO_ROOT/supabase/functions" && deno fmt --check && deno lint && deno test --allow-env --allow-net)

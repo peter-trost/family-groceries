@@ -852,14 +852,17 @@ class const _UsualChips({
         return Padding(
           key: ValueKey(typing ? 'suggestions' : 'due-suggestions'),
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              spacing: 8,
-              children: [
-                if (!typing) Text(l10n.dueSuggestions),
-                for (final usual in usuals) _chip(l10n, usual),
-              ],
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                spacing: 8,
+                children: [
+                  if (!typing) Text(l10n.dueSuggestions),
+                  for (final usual in usuals) _chip(l10n, usual),
+                ],
+              ),
             ),
           ),
         );

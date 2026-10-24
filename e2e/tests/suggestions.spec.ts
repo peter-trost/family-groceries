@@ -1,7 +1,11 @@
+import { createClient } from '@supabase/supabase-js';
 import { expect, test } from '@playwright/test';
+import { localSecretKey } from '../stack';
 import {
-  addField, addItem, cutOff, itemRow, newEmail, screenshot, signUpWithHousehold, tickBox, typeInto,
+  addField, addItem, apiAs, cutOff, itemRow, newEmail, screenshot, signUpWithHousehold, supabaseUrl, tickBox, typeInto,
 } from './helpers';
+
+const daysAgo = (days: number, hours = 0) => new Date(Date.now() - (days * 24 + hours) * 3_600_000).toISOString();
 
 test('typing offers what the household bought before; a tap adds it with its last quantity', async ({ page }) => {
   await signUpWithHousehold(page, newEmail('usuals'));
@@ -51,5 +55,43 @@ test('suggestions come from the device cache when Supabase is unreachable', asyn
   await typeInto(addField(page), 'ei');
   await page.getByRole('button', { name: 'Vorschlag: 6 Eier' }).click();
   await expect(itemRow(page, 'Eier'), 'added offline from a cached suggestion').toHaveAccessibleName(/^Eier 6/);
+  await expect(addField(page)).toBeFocused();
+});
+
+test('with the field empty, what is due again is offered; a tap adds it and typing goes on', async ({ page }) => {
+  const email = newEmail('usuals-due');
+  await signUpWithHousehold(page, email);
+  await addItem(page, '4 Brötchen');
+  await expect(itemRow(page, 'Brötchen')).toHaveAccessibleName(/^Brötchen 4/);
+  await tickBox(page, 'Brötchen').click();
+  await expect(itemRow(page, 'Brötchen')).toHaveCount(0);
+  await expect(page.getByText('Brauchen wir wieder?'), 'one purchase is not a usual interval yet').toHaveCount(0);
+
+  // Two purchases a week apart, the last a week ago: history only the server writes.
+  const api = await apiAs(email);
+  const { data: item } = await api.from('items').select('id, household_id').eq('name', 'Brötchen').single();
+  const admin = createClient(supabaseUrl, localSecretKey(), { auth: { persistSession: false } });
+  const events = admin.from('item_events');
+  expect((await events.update({ created_at: daysAgo(7) }).eq('item_id', item!.id).eq('action', 'bought')).error).toBeNull();
+  expect((await events.update({ created_at: daysAgo(7, 1) }).eq('item_id', item!.id).eq('action', 'added')).error).toBeNull();
+  expect((await events.insert([
+    { household_id: item!.household_id, item_id: item!.id, action: 'added', item_name: 'Brötchen', created_at: daysAgo(14, 1) },
+    { household_id: item!.household_id, item_id: item!.id, action: 'bought', item_name: 'Brötchen', created_at: daysAgo(14) },
+  ])).error).toBeNull();
+
+  await page.reload();
+  await expect(addField(page)).toBeFocused();
+  await expect(page.getByText('Brauchen wir wieder?'), 'the usual week has passed').toBeVisible();
+  const chip = page.getByRole('button', { name: 'Vorschlag: 4 Brötchen' });
+  await expect(chip).toBeVisible();
+  await screenshot(page, '11-due-suggestions');
+
+  await chip.click();
+  await expect(itemRow(page, 'Brötchen'), 'added with its usual quantity').toHaveAccessibleName(/^Brötchen 4/);
+  await expect(page.getByText('Brauchen wir wieder?'), 'nothing else is due').toHaveCount(0);
+  await expect(addField(page), 'the chip leaves focus in the add field').toBeFocused();
+  await page.keyboard.insertText('Butter');
+  await page.keyboard.press('Enter');
+  await expect(itemRow(page, 'Butter'), 'Enter adds the next item').toBeVisible();
   await expect(addField(page)).toBeFocused();
 });

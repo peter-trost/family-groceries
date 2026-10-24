@@ -61,13 +61,13 @@ select pg_temp.item('butter', null, 'active');
 -- Gurken with 2 bought 10 days ago, then Gurke with 3 bought 3 days ago.
 with g as (select pg_temp.item('Gurken', '2') as id)
 select pg_temp.event(id, 'bought', 'Gurken', (select t from clock) - interval '10 days') from g;
-update public.items set bought_at = (select t from clock) - interval '10 days' where name = 'Gurken';
+update public.items set bought_at = (select t from clock) - interval '10 days' where name = 'Gurken' and household_id = (select id from h);
 with g as (select pg_temp.item('Gurke', '3') as id)
 select pg_temp.event(id, 'bought', 'Gurke', (select t from clock) - interval '3 days') from g;
-update public.items set bought_at = (select t from clock) - interval '3 days' where name = 'Gurke';
+update public.items set bought_at = (select t from clock) - interval '3 days' where name = 'Gurke' and household_id = (select id from h);
 
 -- A classifier move on another day is not a use.
-select pg_temp.event((select id from public.items where name = 'Mehl'), 'edited', 'Mehl', (select t from clock) - interval '1 day');
+select pg_temp.event((select id from public.items where name = 'Mehl' and household_id = (select id from h)), 'edited', 'Mehl', (select t from clock) - interval '1 day');
 with s as (select pg_temp.item('Senf') as id)
 select pg_temp.event(id, 'edited', 'Senf', (select t from clock) - interval '3 days') from s;
 

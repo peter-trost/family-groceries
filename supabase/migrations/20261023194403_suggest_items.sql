@@ -14,6 +14,7 @@ language sql stable security invoker set search_path = '' as $$
     from public.item_events e
     where public.is_household_member(p_household)
       and e.household_id = p_household
+      -- 'restored' is read only to drop ticks undone within 10 minutes.
       and e.action in ('added', 'bought', 'restored')
       and e.created_at <= p_now
       and e.created_at > p_now - interval '1 year'

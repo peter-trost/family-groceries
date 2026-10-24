@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { deleteItem, dragItemTo, expectGroup } from './catalog';
 import { addItem, apiAs, itemRow, newEmail, screenshot, signUpWithHousehold, tickBox } from './helpers';
 

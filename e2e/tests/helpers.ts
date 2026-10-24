@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { expect, type Locator, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import WebSocket from 'ws';
 import { fakeOidcPort, stack } from '../stack';
 
@@ -83,7 +83,17 @@ export async function screenshot(page: Page, name: string): Promise<void> {
   const dir = process.env.SCREENSHOT_DIR;
   if (!dir) return;
   mkdirSync(dir, { recursive: true });
-  await page.screenshot({ path: `${dir}/${name}.png` });
+  // Flutter animates on its canvas, out of reach of Playwright's animation
+  // controls, so wait until two frames agree (a chip that was just tapped
+  // fades for ~200 ms).
+  let previous = await page.screenshot();
+  for (let attempt = 0; attempt < 20; attempt++) {
+    await page.waitForTimeout(100);
+    const current = await page.screenshot();
+    if (current.equals(previous)) break;
+    previous = current;
+  }
+  writeFileSync(`${dir}/${name}.png`, previous);
 }
 
 /** The newest sign-in link Mailpit holds for `email`. */

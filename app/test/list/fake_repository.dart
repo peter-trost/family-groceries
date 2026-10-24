@@ -52,6 +52,12 @@ class FakeRepository() implements ListRepository {
 
   Completer<void>? gate;
 
+  /// How many times the list subscribed to realtime.
+  var watches = 0;
+
+  /// Holds catalog fetches until completed.
+  Completer<void>? catalogGate;
+
   DateTime _tick() => _clock = _clock.add(const Duration(seconds: 1));
 
   String classify(String name) =>
@@ -66,6 +72,7 @@ class FakeRepository() implements ListRepository {
   @override
   Future<Catalog> fetchCatalog() async {
     _ensureOnline();
+    await catalogGate?.future;
     return Catalog(categories: categories, stores: stores, layout: layout);
   }
 
@@ -198,6 +205,7 @@ class FakeRepository() implements ListRepository {
     required void Function() onCatalogChanged,
     required void Function(ConnectionStatus status) onStatus,
   }) {
+    watches++;
     emitItem = onItem;
     emitDelete = onItemDeleted;
     emitStatus = onStatus;

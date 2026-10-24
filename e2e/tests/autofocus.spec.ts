@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { addField, addItem, itemRow, newEmail, screenshot, signUpWithHousehold } from './helpers';
 
 test('on open the add field is focused and the list is visible beneath it', async ({ page }) => {

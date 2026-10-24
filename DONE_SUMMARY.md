@@ -6,6 +6,7 @@
 - Job 4, Siri endpoint, in-app dictation, release setup, final pass (whole-project overview and everything that needs Peter): [docs/done/04-voice-release.md](docs/done/04-voice-release.md)
 - Job 5, verification skill and the fg CLI: [docs/done/05-verification-skill.md](docs/done/05-verification-skill.md)
 - Job 3b, MCP follow-ups: [docs/done/03b.md](docs/done/03b.md)
+- Job 2b, follow-ups to jobs 2 and 5 (finished and landed by 02c): [docs/done/02b.md](docs/done/02b.md)
 
 ## Job 1: foundation (2026-10-22)
 
@@ -175,3 +176,7 @@ See [docs/done/03-mcp-oauth-tokens.md](docs/done/03-mcp-oauth-tokens.md).
 ## Job 7: Vercel hosting, auth config, API-only deploy
 
 See [docs/done/07-pages-auth-config.md](docs/done/07-pages-auth-config.md).
+
+## Job 2b: follow-ups to jobs 2 and 5
+
+See [docs/done/02b.md](docs/done/02b.md).

@@ -2,7 +2,7 @@
 // Android apps make after the native Google or Apple dialog. The fake provider
 // signs the ID tokens; Supabase Auth verifies issuer, audience and nonce and
 // links accounts with the same code it runs for Google and Apple.
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { createHash, randomUUID } from 'node:crypto';
 import { anonClient, apiAs, fakeIdToken, latestLinkFor, newEmail, password } from './helpers';
 

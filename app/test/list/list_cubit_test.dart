@@ -112,6 +112,66 @@ void main() {
     expect(activeNames(), ['Tee']);
   });
 
+  test('overlapping resyncs both land and the list stays online', () async {
+    repo.remoteAdd('Tee');
+    // The channel subscribes while the opening resync is still in flight.
+    repo.emitStatus!(ConnectionStatus.online);
+    await cubit.resync();
+    await settle();
+    expect(cubit.state.connection, ConnectionStatus.online);
+    expect(activeNames(), ['Tee']);
+  });
+
+  test('a resync that answers after a failed one clears offline', () async {
+    repo.emitStatus!(ConnectionStatus.online);
+    await settle();
+    repo.online = false;
+    await cubit.resync();
+    expect(cubit.state.connection, ConnectionStatus.offline);
+    repo.online = true;
+    await cubit.resync();
+    expect(cubit.state.connection, ConnectionStatus.online);
+  });
+
+  test('a resync does not claim online while the channel is down', () async {
+    repo.emitStatus!(ConnectionStatus.offline);
+    await cubit.resync();
+    expect(cubit.state.connection, ConnectionStatus.offline);
+  });
+
+  test('an add acked during a catalog reload survives the reload', () async {
+    repo.catalogGate = Completer();
+    final rename = cubit.renameCategory('produce', 'Obst');
+    await settle();
+    cubit.add('Brot');
+    await settle();
+    expect(cubit.state.pending, isEmpty);
+    repo.catalogGate!.complete();
+    await rename;
+    expect(cubit.state.pending, isEmpty);
+    expect(activeNames(), ['Brot']);
+    expect(cubit.state.catalog.categories.first.name, 'Obst');
+  });
+
+  test('a closed channel is subscribed again until it is live', () async {
+    final retrying = ListCubit(
+      repo,
+      cache,
+      resubscribeAfter: const Duration(milliseconds: 10),
+    )..start();
+    await settle();
+    final before = repo.watches;
+    repo.emitStatus!(ConnectionStatus.offline);
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(repo.watches, before + 1);
+    repo.emitStatus!(ConnectionStatus.online);
+    await settle();
+    expect(retrying.state.connection, ConnectionStatus.online);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(repo.watches, before + 1, reason: 'no more resubscribes once live');
+    await retrying.close();
+  });
+
   test('a delete can be undone with the same id', () async {
     final item = (cubit.add('Milch') as Added).item;
     await settle();

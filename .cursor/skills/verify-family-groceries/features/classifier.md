@@ -1,6 +1,6 @@
 # Classifier
 
-Every new item lands in a category without the user choosing one. The list groups items under category headers in the household's route order (Obst & Gemüse first, Sonstiges last). The user can move an item to another category in its edit sheet, and the household remembers the move: the next time that item is added, it lands in the category it was moved to. Classification runs on the server (`classify_item`: learned corrections, then a German dictionary of about 1070 terms, then "Sonstiges"), so the app, MCP and Siri agree.
+Every new item lands in a category without the user choosing one. The list groups items under category headers in the household's route order (Obst & Gemüse first, Sonstiges last). The user can move an item to another category in its edit sheet, and the household remembers the move: the next time that item is added, it lands in the category it was moved to. Classification runs on the server (`classify_item`: learned corrections, then a German dictionary of about 1160 terms, then "Sonstiges"), so the app, MCP and Siri agree.
 
 ## Sub-features
 
@@ -31,6 +31,8 @@ Preconditions:
 ## Gotchas
 
 - With the dropdown open, category names appear twice: in the menu and as headers on the list behind the sheet. `fg tap --text` takes the first match. Choose a category with no items on the list, or check the result with the category query.
+- Household and drugstore goods (bags, cleaning brands, Kleber, Taschentuch) are covered since job 2b: "Mülltüten" → Haushalt, "Sekundenkleber" → Haushalt (not Fleisch via "leber"), "Elmex" → Drogerie. A quick check: `fg db query "select c.name from categories c where c.id = classify_item('<household id>', 'Mülltüten')"`.
+- `supabase/classifier/sweep.sh` reruns the 345-item non-food sweep (`sweep.tsv`) on the local stack and prints every item whose category moved; it exits 1 if any did. Run it after a dictionary change; refresh the list with `sweep.sh --print` only when the move is intended.
 - Matching folds case, umlauts and one plural ending ("Gurken" = "Gurke") and prefers the head of a compound ("Hafermilch" → Kühlregal, "Milchschokolade" → Süßes & Snacks). The dictionary is `supabase/classifier/dictionary.tsv`.
 - Learning is per household and survives `fg up` but not `fg up --fresh`. A move taught in an earlier run changes where the item lands. Start from `--fresh` when the first category matters.
 - New items briefly show under "Wird einsortiert …" until the server returns the category. Wait for the item under its final header before you assert.

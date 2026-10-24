@@ -22,6 +22,10 @@ Future<void> main() async {
   await Supabase.initialize(
     url: Environment.supabaseUrl,
     publishableKey: Environment.supabasePublishableKey,
+    // The list and session retry on their own (every 3 s, ops until acked);
+    // postgrest's GET retries (1 + 2 + 4 s) only hid an offline start.
+    // `client.from` ignores this option, so reads go through `client.rest`.
+    postgrestOptions: const PostgrestClientOptions(retryEnabled: false),
   );
   final client = Supabase.instance.client;
   final social = SocialSignIn(

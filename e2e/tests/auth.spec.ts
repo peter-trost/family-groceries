@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { addField, latestLinkFor, newEmail, password, signUpWithHousehold, typeInto } from './helpers';
 
 test('email and password: sign out and back in', async ({ page }) => {

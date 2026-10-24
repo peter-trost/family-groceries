@@ -141,3 +141,48 @@ test('a change made before the channel is live still shows up', async ({ page })
   release();
   await expect(itemRow(page, 'Zwischendurch'), 'caught up once the channel is live').toBeVisible();
 });
+
+/** Routes the page's Realtime socket through the test so it can play the server's part. */
+async function interceptRealtime(page: import('@playwright/test').Page) {
+  const state: { joined?: unknown[]; live: boolean; close: () => void; closeChannel: () => void } = {
+    live: false,
+    close: () => {},
+    closeChannel: () => {},
+  };
+  await page.routeWebSocket(/\/realtime\/v1\/websocket/, (ws) => {
+    const server = ws.connectToServer();
+    ws.onMessage((message) => {
+      const frame = JSON.parse(String(message)) as unknown[];
+      if (frame[3] === 'phx_join' && String(frame[2]).startsWith('realtime:household:')) state.joined = frame;
+      server.send(message);
+    });
+    server.onMessage((message) => {
+      if (String(message).includes('Subscribed to PostgreSQL')) state.live = true;
+      ws.send(message);
+    });
+    state.close = () => ws.close({ code: 1011, reason: 'server restart' });
+    state.closeChannel = () => ws.send(JSON.stringify([state.joined![0], null, state.joined![2], 'phx_close', {}]));
+  });
+  return state;
+}
+
+for (const drop of ['closes the list channel', 'drops the socket'] as const) {
+  test(`the list recovers when Realtime ${drop}`, async ({ page }) => {
+    const realtime = await interceptRealtime(page);
+    const email = newEmail('drop');
+    await signUpWithHousehold(page, email);
+    await expect.poll(() => realtime.live, { message: 'the channel is live' }).toBe(true);
+    realtime.live = false;
+
+    if (drop === 'closes the list channel') realtime.closeChannel();
+    else realtime.close();
+    await expect(page.getByText(/^Offline:/), 'the drop shows').toHaveCount(1);
+
+    await expect(page.getByText(/^Offline:/), 'and clears again on its own').toHaveCount(0, { timeout: 20_000 });
+    await expect.poll(() => realtime.live, { message: 'live again', timeout: 20_000 }).toBe(true);
+    const api = await apiAs(email);
+    const { data } = await api.from('household_members').select('household_id').single();
+    await api.from('items').insert({ household_id: data!.household_id, name: 'Nach dem Abbruch' });
+    await expect(itemRow(page, 'Nach dem Abbruch'), 'live updates flow again').toBeVisible();
+  });
+}
